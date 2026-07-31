@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  admins    Admin[]
+}
+
+model Admin {
+  id                Int      @id @default(autoincrement())
+  email             String   @unique
+  password          String
+  organizationId    Int?
+  organization      Organization? @relation(fields: [organizationId], references: [id])
+  isVerified        Boolean  @default(false)
+  verificationToken String?
+  createdAt         DateTime @default(now())
+  apiKeys           ApiKey[]
+  securityLogs      SecurityLog[]
+}
+
+model ApiKey {
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  admin     Admin    @relation(fields: [adminId], references: [id])
+  keyValue  String
+  isActive  Int      @default(1)
+  createdAt DateTime @default(now())
+}
+
+model SecurityLog {
+  id                Int      @id @default(autoincrement())
+  timestamp         DateTime @default(now())
+  level             String   @default("INFO")
+  sourceIp          String
+  portId            String?
+  action            String   @default("")
+  badgeText         String?
+  badgeColor        String?
+  userIdentity      String?
+  expandable        Boolean  @default(false)
+  fingerprint       String?
+  detail            String?
+  countryCode       String?
+  country           String?
+  flag              String?
+  crowdsecAlertId   String?  @unique
+  source            String?  @default("manual")
+  ipAddressPublic   String?
+  adminId           Int?
+  admin             Admin?   @relation(fields: [adminId], references: [id])
+  isBlocked         Boolean  @default(false)
+  severity          String?
+  createdAt         DateTime @default(now())
+}

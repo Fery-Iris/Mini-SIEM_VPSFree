@@ -1,0 +1,92 @@
+# Pola deteksi SQL Injection
+# Diadaptasi dari crowdsecurity/http-sqli-probing
+# Mendeteksi percobaan SQL Injection pada parameter HTTP.
+
+# Classic SQLi
+' OR '1'='1
+' OR 1=1--
+' OR 1=1#
+" OR "1"="1
+" OR 1=1--
+OR 1=1
+OR 'a'='a'
+' OR ''='
+admin'--
+1' AND '1'='1
+
+# Union-based injection
+UNION SELECT
+UNION ALL SELECT
+UNION+SELECT
+UNION%20SELECT
+UNION%20ALL%20SELECT
+ORDER BY 1--
+GROUP BY 1--
+
+# Error-based / diagnostic
+' AND 1=CONVERT(int,@@version)--
+extractvalue(
+updatexml(
+EXP(~(SELECT
+GTID_SUBSET(
+AND 1=1
+AND 1=2
+' AND '1'='1
+' AND '1'='2
+
+# Time-based blind
+SLEEP(
+BENCHMARK(
+WAITFOR DELAY
+pg_sleep(
+DBMS_LOCK.SLEEP
+
+# Stacked queries / destructive
+; DROP TABLE
+; DROP DATABASE
+; DELETE FROM
+; UPDATE
+; INSERT INTO
+; EXEC
+; EXECUTE
+xp_cmdshell
+
+# Information gathering
+@@version
+version()
+database()
+user()
+current_user()
+schema()
+information_schema
+table_name
+column_name
+LOAD_FILE(
+INTO OUTFILE
+INTO DUMPFILE
+
+# Comment indicators
+--
+#
+/*
+*/
+/**/
+%23
+--%20
+%2D%2D
+
+# URL-encoded variants
+%27%20OR
+%27%20AND
+%22%20OR
+%27%3B
+UNION%20SELECT
+%27%20UNION
+1%27%20OR%20%271%27%3D%271
+
+# Hex-encoded
+0x27
+0x3B
+CHAR(39)
+CHAR(59)
+CHR(39)

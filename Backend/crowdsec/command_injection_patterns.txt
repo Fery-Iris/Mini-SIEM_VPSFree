@@ -1,0 +1,56 @@
+# Pola deteksi Command Injection (OS Command Injection)
+# Diadaptasi dari crowdsecurity/http-generic-bf & OWASP command injection cheat sheet
+# Mendeteksi percobaan eksekusi perintah OS melalui input HTTP.
+# CATATAN: Pattern minimal 3 karakter untuk menghindari false positive.
+
+# Common Unix commands (diperluas agar spesifik)
+cat /etc
+ls -la
+whoami
+uname -a
+wget http
+curl http
+netcat
+nmap -s
+traceroute
+ifconfig
+ip addr
+chmod 777
+chown root
+rm -rf
+mkfifo
+/bin/sh
+/bin/bash
+sh -c
+bash -c
+bash -i
+python -c
+perl -e
+ruby -e
+php -r
+
+# Common Windows commands
+cmd /c
+cmd.exe
+powershell
+powershell.exe
+net user
+net localgroup
+ipconfig /all
+systeminfo
+tasklist
+taskkill
+dir /s
+
+# Encoding tricks (minimal 3 chars)
+%0a%0d
+%3B%20
+%7C%20
+%24%28
+
+# Reverse shell indicators
+/dev/tcp
+/dev/udp
+mkfifo /tmp
+nc -e
+bash -i >& /dev/tcp

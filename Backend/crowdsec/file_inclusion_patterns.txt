@@ -1,0 +1,65 @@
+# Pola deteksi File Inclusion (LFI/RFI)
+# Diadaptasi dari crowdsecurity/http-path-traversal-probing
+# Mendeteksi percobaan Local File Inclusion dan Remote File Inclusion.
+
+# Path traversal sequences
+../
+..\.
+....//
+....\\
+..%2F
+..%5C
+%2e%2e%2f
+%2e%2e/
+..%252f
+%252e%252e%252f
+
+# Target file sensitif (Linux)
+/etc/passwd
+/etc/shadow
+/etc/hosts
+/etc/hostname
+/proc/self/environ
+/proc/version
+/proc/cmdline
+/var/log/auth.log
+/var/log/apache2/access.log
+/var/log/nginx/access.log
+
+# Target file sensitif (Windows)
+\windows\system32\drivers\etc\hosts
+\windows\win.ini
+\windows\system.ini
+boot.ini
+\inetpub\logs
+\inetpub\wwwroot\web.config
+
+# PHP Wrapper / Stream (RFI)
+php://filter
+php://input
+php://output
+php://fd
+php://memory
+php://temp
+data://text/plain
+expect://
+zip://
+phar://
+file://
+glob://
+
+# Remote inclusion indicators
+http://
+https://
+ftp://
+\\\\
+
+# URL-encoded variants
+%00
+%2500
+php%3A%2F%2F
+file%3A%2F%2F
+data%3A%2F%2F
+%2Fetc%2Fpasswd
+%2Fetc%2Fshadow
+%5Cwindows%5Csystem32

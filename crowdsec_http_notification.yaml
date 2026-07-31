@@ -1,0 +1,63 @@
+# CrowdSec HTTP Notification Plugin → Mini-SIEM Webhook
+# This file should be copied to: C:\ProgramData\CrowdSec\config\notifications\http.yaml
+
+type: http
+name: http_default
+log_level: info
+
+format: |
+  [
+    {{ range $i, $alert := . -}}
+    {{ if $i }},{{ end }}
+    {
+      "id": {{ $alert.ID }},
+      "created_at": "{{ $alert.CreatedAt }}",
+      "scenario": "{{ $alert.Scenario }}",
+      "scenario_version": "{{ $alert.ScenarioVersion }}",
+      "message": "{{ $alert.Message }}",
+      "events_count": {{ $alert.EventsCount }},
+      "source": {
+        "ip": "{{ $alert.Source.IP }}",
+        "range": "{{ $alert.Source.Range }}",
+        "scope": "{{ $alert.Source.Scope }}",
+        "value": "{{ $alert.Source.Value }}",
+        "cn": "{{ $alert.Source.Cn }}"
+      },
+      "start_at": "{{ $alert.StartAt }}",
+      "stop_at": "{{ $alert.StopAt }}",
+      "simulated": {{ $alert.Simulated }},
+      "events": [
+        {{ range $j, $event := $alert.Events -}}
+        {{ if $j }},{{ end }}
+        {
+          "timestamp": "{{ $event.Timestamp }}",
+          "meta": [
+            {{ range $k, $meta := $event.Meta -}}
+            {{ if $k }},{{ end }}
+            { "key": "{{ $meta.Key }}", "value": "{{ $meta.Value }}" }
+            {{- end }}
+          ]
+        }
+        {{- end }}
+      ],
+      "decisions": [
+        {{ range $j, $decision := $alert.Decisions -}}
+        {{ if $j }},{{ end }}
+        {
+          "duration": "{{ $decision.Duration }}",
+          "type": "{{ $decision.Type }}",
+          "scope": "{{ $decision.Scope }}",
+          "value": "{{ $decision.Value }}",
+          "origin": "{{ $decision.Origin }}"
+        }
+        {{- end }}
+      ]
+    }
+    {{- end }}
+  ]
+
+url: http://localhost:8081/api/alerts/webhook
+method: POST
+headers:
+  Authorization: "Bearer xr_live_2b69c425c67bbb8b0faae0e391653b94"
+  Content-Type: "application/json"
