@@ -1,9 +1,10 @@
+'use client';
 import type { FC } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export const Footer: FC = () => {
-  const navigate = useNavigate();
+  const navigate = useRouter();
   const { t } = useLanguage();
 
   return (
@@ -115,3 +116,4 @@ export const Footer: FC = () => {
     </footer>
   );
 };
+

@@ -1,6 +1,7 @@
+'use client';
 import type { FC } from 'react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { Button } from './Button';
 import { LanguageToggle } from './LanguageToggle';
@@ -11,7 +12,7 @@ interface NavbarProps {
 }
 
 export const Navbar: FC<NavbarProps> = ({ onGetDemo }) => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { t } = useLanguage();
 
@@ -28,10 +29,10 @@ export const Navbar: FC<NavbarProps> = ({ onGetDemo }) => {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-4">
-          <Button variant="outline" className="text-slate-600 font-semibold border-slate-200/60 shadow-sm" onClick={() => navigate('/docs')}>
+          <Button variant="outline" className="text-slate-600 font-semibold border-slate-200/60 shadow-sm" onClick={() => router.push('/docs')}>
             {t('nav.documentation')}
           </Button>
-          <Button variant="primary" className="font-semibold shadow-md shadow-blue-500/20" onClick={onGetDemo}>
+          <Button variant="primary" className="font-semibold shadow-md shadow-blue-500/20" onClick={() => router.push('/login')}>
             {t('nav.getFreeDemo')}
           </Button>
         </div>
@@ -52,7 +53,7 @@ export const Navbar: FC<NavbarProps> = ({ onGetDemo }) => {
             variant="outline" 
             className="w-full text-slate-600 font-semibold border-slate-200/60 shadow-sm justify-center flex" 
             onClick={() => {
-              navigate('/docs');
+              router.push('/docs');
               setIsMenuOpen(false);
             }}
           >
@@ -62,7 +63,7 @@ export const Navbar: FC<NavbarProps> = ({ onGetDemo }) => {
             variant="primary" 
             className="w-full font-semibold shadow-md shadow-blue-500/20 justify-center flex" 
             onClick={() => {
-              onGetDemo?.();
+              router.push('/login');
               setIsMenuOpen(false);
             }}
           >
@@ -73,3 +74,6 @@ export const Navbar: FC<NavbarProps> = ({ onGetDemo }) => {
     </header>
   );
 };
+
+
+

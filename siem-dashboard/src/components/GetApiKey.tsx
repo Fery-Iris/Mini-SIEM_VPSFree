@@ -1,3 +1,4 @@
+'use client';
 import type { FC } from 'react';
 import { useState, useCallback, useEffect } from 'react';
 import {
@@ -45,7 +46,7 @@ const NAV_ITEMS = [
   { label: 'Get API Key', icon: KeyRound, key: 'apikey', isNew: true },
 ];
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+const API = '';
 
 /* ─────────────────── Helpers ─────────────────── */
 
@@ -423,3 +424,4 @@ export const GetApiKey: FC<GetApiKeyProps> = ({
     </div>
   );
 };
+

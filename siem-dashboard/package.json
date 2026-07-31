@@ -11,8 +11,10 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.28.0",
     "motion": "^12.43.0",
     "next": "16.2.12",
@@ -21,6 +23,7 @@
     "react-country-flag": "^3.1.0",
     "react-dom": "19.2.4",
     "react-globe.gl": "^2.38.0",
+    "resend": "^6.18.1",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

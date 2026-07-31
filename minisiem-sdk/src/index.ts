@@ -1,0 +1,71 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { isIPBlockedLocally, cacheBlockedIP } from "./cache";
+import { detectThreats } from "./waf";
+
+interface MiniSIEMConfig {
+  apiKey: string;
+  siemUrl: string;
+}
+
+export function withMiniSIEM(config: MiniSIEMConfig, nextMiddleware?: (req: NextRequest) => Promise<NextResponse> | NextResponse) {
+  return async function middleware(req: NextRequest) {
+    const url = req.nextUrl;
+    
+    // Skip static assets
+    if (url.pathname.startsWith("/_next/") || url.pathname.includes(".")) {
+      if (nextMiddleware) return nextMiddleware(req);
+      return NextResponse.next();
+    }
+
+    const ip = req.ip || req.headers.get("x-forwarded-for") || "unknown";
+    
+    // 1. Check Local Cache for Blocked IPs
+    if (isIPBlockedLocally(ip)) {
+      return new NextResponse("Forbidden (Blocked by Mini-SIEM)", { status: 403 });
+    }
+
+    // 2. Fetch latest blocklist from SIEM dashboard asynchronously (non-blocking for UI)
+    // In a real production SDK, we might poll this in background, but here we can do it opportunistically.
+    fetch(`${config.siemUrl}/api/blocked`, {
+      headers: { "Authorization": `Bearer ${config.apiKey}` }
+    }).then(async res => {
+      if (res.ok) {
+        const data = await res.json();
+        if (data.blocked_ips && data.blocked_ips.includes(ip)) {
+          cacheBlockedIP(ip);
+        }
+      }
+    }).catch(console.error);
+
+    // 3. WAF: Inspect Request for OWASP Top 10 threats
+    const wafResult = detectThreats(req.url, req.headers);
+
+    if (wafResult.detected) {
+      // Async report threat to Dashboard
+      fetch(`${config.siemUrl}/api/detection/threats`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          ipAddress: ip,
+          action: wafResult.action,
+          severity: wafResult.severity,
+          payload: wafResult.matchedPayload,
+          userAgent: req.headers.get("user-agent")
+        })
+      }).catch(console.error);
+
+      // Immediately block
+      return new NextResponse("Malicious Request Blocked by Mini-SIEM", { status: 403 });
+    }
+
+    if (nextMiddleware) {
+      return nextMiddleware(req);
+    }
+    return NextResponse.next();
+  }
+}
+

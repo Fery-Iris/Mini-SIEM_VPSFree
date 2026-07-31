@@ -1,5 +1,7 @@
+'use client';
 import type { FC, FormEvent } from 'react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Shield, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { AnimatedCircles } from './AnimatedCircles';
 import { LanguageToggle } from './LanguageToggle';
@@ -9,6 +11,7 @@ interface LoginProps {
 }
 
 export const Login: FC<LoginProps> = ({ onLogin }) => {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -21,7 +24,7 @@ export const Login: FC<LoginProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      const API = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+      const API = '';
       const response = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: {
@@ -33,6 +36,8 @@ export const Login: FC<LoginProps> = ({ onLogin }) => {
 
       if (response.ok && data.success) {
         onLogin?.(data.email || email);
+        localStorage.setItem('token', data.token);
+        router.push('/dashboard');
       } else {
         setError(data.message || 'Invalid credentials.');
       }
@@ -260,3 +265,4 @@ export const Login: FC<LoginProps> = ({ onLogin }) => {
     </div>
   );
 };
+

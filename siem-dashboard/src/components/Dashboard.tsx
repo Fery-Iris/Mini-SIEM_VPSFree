@@ -1,3 +1,4 @@
+'use client';
 import type { FC } from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -24,7 +25,7 @@ import { maskIP } from '../utils/ipMask';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '../contexts/LanguageContext';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+const API = '';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
@@ -508,3 +509,4 @@ export const Dashboard: FC<DashboardProps> = ({ onLogout, onNavigate }) => {
     </div>
   );
 };
+

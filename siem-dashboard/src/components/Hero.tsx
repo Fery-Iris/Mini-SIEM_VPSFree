@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect } from 'react';
 import { Button } from './Button';
 import { Shield, Activity, BarChart3, Settings, AlertTriangle, ShieldCheck } from 'lucide-react';
@@ -10,7 +11,9 @@ interface HeroProps { //what is interface heroprops? In TypeScript, an interface
 
 let hasIncremented = false;
 
-export const Hero: React.FC<HeroProps> = ({ onGetDemo }) => { // what does export const Hero: React.FC<HeroProps> = ({ onGetDemo }) => { do? This line defines a React functional component named Hero. The component is typed with React.FC (which stands for React Functional Component) and is given the type of its props as HeroProps. This means that the Hero component expects to receive props that match the shape defined in the HeroProps interface. The component takes an optional prop called onGetDemo, which is a function that can be called when the "Get Free Demo" button is clicked. The component returns JSX that represents the structure and styling of the hero section of a webpage, including a background image, headline, description, and call-to-action buttons.
+import { useRouter } from 'next/navigation';
+export const Hero: React.FC<HeroProps> = ({ onGetDemo }) => {
+  const router = useRouter();
   const [isRequesting, setIsRequesting] = useState(false);
   const [visitorCount, setVisitorCount] = useState(1243);
   const heroLeft = useScrollReveal<HTMLDivElement>();
@@ -120,7 +123,7 @@ export const Hero: React.FC<HeroProps> = ({ onGetDemo }) => { // what does expor
                 </div>
                 <div className="flex flex-col text-left">
                   <span className="text-sm font-semibold text-slate-700 leading-none">
-                    <span className="text-emerald-600 font-bold tabular-nums">{visitorCount.toLocaleString()}</span> total visits
+                    <span className="text-emerald-600 font-bold tabular-nums">{visitorCount.toLocaleString('en-US')}</span> total visits
                   </span>
                   <span className="text-[11px] text-slate-500 font-medium mt-1">Real-time monitoring</span>
                 </div>
@@ -248,3 +251,5 @@ export const Hero: React.FC<HeroProps> = ({ onGetDemo }) => { // what does expor
     </section>
   );
 };
+
+

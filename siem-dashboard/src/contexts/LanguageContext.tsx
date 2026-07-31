@@ -1,3 +1,4 @@
+'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { FC, ReactNode } from 'react';
 
@@ -13,7 +14,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [lang, setLangState] = useState<Language>(() => {
-    return (localStorage.getItem('app_lang') as Language) || 'en';
+    if (typeof window !== 'undefined') { return (localStorage.getItem('app_lang') as Language) || 'en'; } return 'en';
   });
 
   const setLang = (newLang: Language) => {
@@ -48,3 +49,4 @@ export const useLanguage = (): LanguageContextType => {
   }
   return context;
 };
+
