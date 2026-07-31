@@ -1,3 +1,4 @@
+import { checkRateLimit, cleanupRateLimitStore } from "./rateLimit";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isIPBlockedLocally, cacheBlockedIP } from "./cache";
@@ -24,6 +25,16 @@ export function withMiniSIEM(config: MiniSIEMConfig, nextMiddleware?: (req: Next
     const ip = req.ip || req.headers.get("x-forwarded-for") || "unknown";
     
     // 1. Check Local Cache for Blocked IPs
+    // Phase 5: Check Rate Limit (Velocity Check)
+    const isAllowedByRateLimit = checkRateLimit(ip);
+    if (!isAllowedByRateLimit) {
+      // Report to SIEM asynchronously
+      request.waitUntil ? request.waitUntil(reportThreat(ip, apiKey, "RATE_LIMIT_EXCEEDED", "High", "Frequent Requests", request.headers.get("user-agent") || "")) : reportThreat(ip, apiKey, "RATE_LIMIT_EXCEEDED", "High", "Frequent Requests", request.headers.get("user-agent") || "");
+      
+      // Return 429 Too Many Requests
+      return new NextResponse(JSON.stringify({ error: "Too Many Requests", message: "You have been rate limited by Mini-SIEM." }), { status: 429, headers: { "Content-Type": "application/json" } });
+    }
+
     if (isIPBlockedLocally(ip)) {
       return new NextResponse("Forbidden (Blocked by Mini-SIEM)", { status: 403 });
     }
@@ -77,5 +88,6 @@ export function withMiniSIEM(config: MiniSIEMConfig, nextMiddleware?: (req: Next
     return NextResponse.next();
   }
 }
+
 
 
