@@ -1,3 +1,4 @@
+import { blockIpInCloudflare } from "@/lib/cloudflare";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAdminId } from "@/utils/serverAuth";
@@ -41,9 +42,16 @@ export async function POST(req: Request) {
       }
     });
 
+    // Phase 4: Sync to Cloudflare WAF if it's a critical block
+    if (severity === "Critical" || severity === "High") {
+      // Fire and forget (async)
+      blockIpInCloudflare(ipAddress || "unknown", "[Mini-SIEM SDK] Blocked: " + action).catch(console.error);
+    }
+
     return NextResponse.json({ success: true, logId: log.id }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
 

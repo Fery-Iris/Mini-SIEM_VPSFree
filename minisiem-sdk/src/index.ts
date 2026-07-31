@@ -15,7 +15,10 @@ export function withMiniSIEM(config: MiniSIEMConfig, nextMiddleware?: (req: Next
     // Skip static assets
     if (url.pathname.startsWith("/_next/") || url.pathname.includes(".")) {
       if (nextMiddleware) return nextMiddleware(req);
-      return NextResponse.next();
+      // Phase 4: IDS Logging for clean traffic
+    request.waitUntil ? request.waitUntil(sendToCloudLogging(request, false)) : sendToCloudLogging(request, false);
+
+    return NextResponse.next();
     }
 
     const ip = req.ip || req.headers.get("x-forwarded-for") || "unknown";
@@ -34,6 +37,9 @@ export function withMiniSIEM(config: MiniSIEMConfig, nextMiddleware?: (req: Next
         const data = await res.json();
         if (data.blocked_ips && data.blocked_ips.includes(ip)) {
           cacheBlockedIP(ip);
+
+    // Phase 4: IDS Logging
+    request.waitUntil ? request.waitUntil(sendToCloudLogging(request, true)) : sendToCloudLogging(request, true);
         }
       }
     }).catch(console.error);
@@ -65,7 +71,11 @@ export function withMiniSIEM(config: MiniSIEMConfig, nextMiddleware?: (req: Next
     if (nextMiddleware) {
       return nextMiddleware(req);
     }
+    // Phase 4: IDS Logging for clean traffic
+    request.waitUntil ? request.waitUntil(sendToCloudLogging(request, false)) : sendToCloudLogging(request, false);
+
     return NextResponse.next();
   }
 }
+
 
