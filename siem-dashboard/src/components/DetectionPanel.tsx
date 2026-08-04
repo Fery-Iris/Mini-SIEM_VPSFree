@@ -16,7 +16,7 @@ import {
 
 /* ─────────────────────────── Constants ─────────────────────────── */
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+const API = '';
 const POLL_INTERVAL = 10_000; // 10 seconds
 
 import { authFetch } from '../utils/auth';

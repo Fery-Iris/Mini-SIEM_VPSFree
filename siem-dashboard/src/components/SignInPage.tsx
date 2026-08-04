@@ -43,7 +43,7 @@ interface SignInPageProps {
   }) => void;
 }
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8081';
+const API = '';
 
 const SignInPage: FC<SignInPageProps> = ({ onAuthSuccess }) => {
   const [mode, setMode] = useState<AuthMode>('signin');

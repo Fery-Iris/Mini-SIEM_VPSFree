@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     // Update Prisma: mark all security logs for this IP as not blocked
     await prisma.securityLog.updateMany({
-      where: { adminId, ipAddress: ip, isBlocked: true },
+      where: { adminId, sourceIp: ip, isBlocked: true },
       data: { isBlocked: false }
     });
 

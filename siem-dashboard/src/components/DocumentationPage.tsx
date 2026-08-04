@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Copy, Check, ChevronDown,
   Terminal, Server, FileText, Key, RotateCcw,

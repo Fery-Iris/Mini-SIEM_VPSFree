@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   if (!authHeader) return NextResponse.json({ error: "API key missing" }, { status: 401 });
   
   const token = authHeader.replace("Bearer ", "");
-  const apiKey = await prisma.apiKey.findUnique({ where: { key: token } });
+  const apiKey = await prisma.apiKey.findFirst({ where: { keyValue: token, isActive: 1 } });
   
   if (!apiKey) return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
 
@@ -33,11 +33,11 @@ export async function POST(req: Request) {
     const log = await prisma.securityLog.create({
       data: {
         adminId: apiKey.adminId,
-        ipAddress: ipAddress || "unknown",
+        sourceIp: ipAddress || "unknown",
         action: action || "WAF_BLOCK",
         severity: severity || "High",
-        payload: payload || "",
-        userAgent: userAgent || "",
+        detail: payload || "",
+        fingerprint: userAgent || "",
         isBlocked: true, // WAF blocked it
       }
     });

@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Dashboard } from "@/components/Dashboard";
 import { GetApiKey } from "@/components/GetApiKey";
+import { DetectionPanel } from "@/components/DetectionPanel";
+import { BlockedPanel } from "@/components/BlockedPanel";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -24,15 +26,23 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  if (currentPage === "apikeys") {
-    return <GetApiKey onNavigate={setCurrentPage} onLogout={handleLogout} userEmail={email} />;
+  // Dynamically render the active page
+  let content;
+  switch (currentPage) {
+    case "apikey":
+      content = <GetApiKey onNavigate={setCurrentPage} onLogout={handleLogout} userEmail={email} />;
+      break;
+    case "detection":
+      content = <DetectionPanel onNavigate={setCurrentPage} onLogout={handleLogout} />;
+      break;
+    case "blocked":
+      content = <BlockedPanel onNavigate={setCurrentPage} onLogout={handleLogout} />;
+      break;
+    case "dashboard":
+    default:
+      content = <Dashboard userEmail={email} onLogout={handleLogout} onNavigate={setCurrentPage} />;
+      break;
   }
 
-  return (
-    <Dashboard 
-      userEmail={email} 
-      onLogout={handleLogout} 
-      onNavigate={setCurrentPage}
-    />
-  );
+  return <>{content}</>;
 }

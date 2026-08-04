@@ -16,8 +16,8 @@ export async function GET() {
   // unique IP sources
   const sources = await prisma.securityLog.findMany({
     where: { ...whereClause, isBlocked: false },
-    select: { ipAddress: true },
-    distinct: ["ipAddress"],
+    select: { sourceIp: true },
+    distinct: ["sourceIp"],
   });
   const sourcesTotal = sources.length;
 
