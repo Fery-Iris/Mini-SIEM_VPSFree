@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Copy, Check, ChevronDown,
   Terminal, Server, FileText, Key, RotateCcw,
@@ -173,7 +174,7 @@ const ArchDiagram = () => {
 
 /* ═══════════════════ MAIN PAGE ═══════════════════ */
 export const DocumentationPage = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const heroReveal = useScrollReveal<HTMLDivElement>({ threshold: 0.05 });
   const { t } = useLanguage();
 
@@ -219,7 +220,7 @@ export const DocumentationPage = () => {
       <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/')} className="flex items-center gap-2 group cursor-pointer">
+            <button onClick={() => router.push('/')} className="flex items-center gap-2 group cursor-pointer">
               <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-8 w-auto" />
               <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-900 tracking-tight">
                 XR Security
@@ -228,7 +229,7 @@ export const DocumentationPage = () => {
             <LanguageToggle />
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => router.push('/')}
             className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
           >
             <ArrowLeft size={16} />
@@ -301,7 +302,7 @@ export const DocumentationPage = () => {
             <li className="flex items-start gap-2"><Check size={16} className="shrink-0 mt-0.5 text-emerald-300" /> {t('docs.prereq4')}</li>
           </ul>
           <button
-            onClick={() => navigate('/signin')}
+            onClick={() => router.push('/signin')}
             className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 bg-white text-blue-600 font-bold text-sm rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer"
           >
             {t('docs.createAccount')} <ExternalLink size={14} />

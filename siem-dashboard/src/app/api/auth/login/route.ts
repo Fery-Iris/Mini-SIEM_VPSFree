@@ -13,14 +13,28 @@ export async function POST(req: Request) {
     }
 
     if (email === "admin@xrsecurity.com") {
+      // Ensure the demo admin exists in DB with a real integer ID
+      let demoAdmin = await prisma.admin.findUnique({ where: { email } });
+      if (!demoAdmin) {
+        const bcrypt = (await import("bcryptjs")).default;
+        const hashedPassword = await bcrypt.hash("admin123", 10);
+        demoAdmin = await prisma.admin.create({
+          data: {
+            email,
+            password: hashedPassword,
+            isVerified: true,
+          },
+        });
+      }
+
       const secret = process.env.JWT_SECRET || "xr-security-change-me-in-production";
-      const token = jwt.sign({ adminId: "mock-id-123" }, secret, { expiresIn: "24h" });
+      const token = jwt.sign({ adminId: demoAdmin.id }, secret, { expiresIn: "24h" });
       return NextResponse.json({
         success: true,
         token,
-        email: email,
-        adminId: "mock-id-123",
-        organizationId: 1,
+        email: demoAdmin.email,
+        adminId: demoAdmin.id,
+        organizationId: demoAdmin.organizationId || 1,
         organizationName: "XR Security Demo",
       });
     }

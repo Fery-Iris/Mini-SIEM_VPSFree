@@ -14,16 +14,17 @@ model Organization {
 }
 
 model Admin {
-  id                Int      @id @default(autoincrement())
-  email             String   @unique
+  id                Int         @id @default(autoincrement())
+  email             String      @unique
   password          String
   organizationId    Int?
   organization      Organization? @relation(fields: [organizationId], references: [id])
-  isVerified        Boolean  @default(false)
+  isVerified        Boolean     @default(false)
   verificationToken String?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime    @default(now())
   apiKeys           ApiKey[]
   securityLogs      SecurityLog[]
+  adminConfig       AdminConfig?
 }
 
 model ApiKey {
@@ -59,4 +60,31 @@ model SecurityLog {
   isBlocked         Boolean  @default(false)
   severity          String?
   createdAt         DateTime @default(now())
+
+  // v2.0 Scoring fields
+  score             Int      @default(0)   // Skor individual event (0-16, from highest WAF rule level)
+  accumulatedScore  Int      @default(0)   // Total skor akumulasi IP saat event ini diterima
+  matchedRules      String?               // JSON array: ["SQL Injection","XSS"]
+  decision          String?               // Keputusan: LOG | ALERT | BLOCK
 }
+
+/// Konfigurasi per-admin: threshold scoring, Telegram alert settings
+model AdminConfig {
+  id                 Int     @id @default(autoincrement())
+  adminId            Int     @unique
+  admin              Admin   @relation(fields: [adminId], references: [id])
+
+  // Scoring thresholds (Wazuh-style)
+  blockThreshold     Int     @default(10)   // Skor akumulasi untuk blokir IP
+  alertThreshold     Int     @default(7)    // Skor akumulasi untuk kirim alert
+  scoreWindowMinutes Int     @default(5)    // Jendela waktu akumulasi (menit)
+
+  // Telegram alert integration
+  telegramBotToken   String?
+  telegramChatId     String?
+  telegramEnabled    Boolean @default(false)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+

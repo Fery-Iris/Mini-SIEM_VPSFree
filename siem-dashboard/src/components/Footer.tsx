@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export const Footer: FC = () => {
-  const navigate = useRouter();
+  const router = useRouter();
   const { t } = useLanguage();
 
   return (
@@ -35,7 +35,7 @@ export const Footer: FC = () => {
             <ul className="space-y-2.5">
               <li>
                 <button
-                  onClick={() => navigate('/docs')}
+                  onClick={() => router.push('/docs')}
                   className="text-sm hover:text-blue-400 transition-colors cursor-pointer"
                 >
                   {t('footer.documentation')}
@@ -43,7 +43,7 @@ export const Footer: FC = () => {
               </li>
               <li>
                 <button
-                  onClick={() => navigate('/signin')}
+                  onClick={() => router.push('/signin')}
                   className="text-sm hover:text-blue-400 transition-colors cursor-pointer"
                 >
                   {t('footer.getStarted')}

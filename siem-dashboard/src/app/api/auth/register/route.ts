@@ -4,8 +4,6 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -56,6 +54,7 @@ export async function POST(req: Request) {
       const verificationLink = `${baseUrl}/api/auth/verify?token=${verificationToken}`;
       
       try {
+        const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
         await resend.emails.send({
           from: "Mini-SIEM <onboarding@resend.dev>",
           to: trimmedEmail,

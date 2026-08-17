@@ -3,28 +3,22 @@ import type { FC } from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  LayoutDashboard,
-  KeyRound,
-  Radar,
-  ShieldBan,
   ShieldAlert,
   AlertTriangle,
   Users,
-  LogOut,
   Search,
   ChevronLeft,
   ChevronRight,
   Zap,
   ChevronDown,
   Menu,
-  X,
   RefreshCw,
 } from 'lucide-react';
 import ReactCountryFlag from 'react-country-flag';
 import { authFetch } from '../utils/auth';
 import { maskIP } from '../utils/ipMask';
-import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSidebar } from '../contexts/SidebarContext';
 
 // Dynamic imports for dashboard visual components (client-only)
 const ThreatGlobe = dynamic(() => import('./dashboard/ThreatGlobe'), {
@@ -41,12 +35,6 @@ const AnalyticsCharts = dynamic(() => import('./dashboard/AnalyticsCharts'), { s
 const API = '';
 
 /* ─────────────────────────── Types ─────────────────────────── */
-
-interface DashboardProps {
-  userEmail: string;
-  onLogout: () => void;
-  onNavigate: (page: string) => void;
-}
 
 
 interface LogEntry {
@@ -77,94 +65,10 @@ interface StatCardData {
   changeBg: string;
 }
 
-/* ─────────────────────── Nav Items ─────────────────────── */
-
-const NAV_ITEMS = [
-  { label: 'Dashboard', icon: LayoutDashboard, key: 'dashboard' },
-  { label: 'Detection Panel', icon: Radar, key: 'detection' },
-  { label: 'Blocked Panel', icon: ShieldBan, key: 'blocked' },
-  { label: 'Get API Key', icon: KeyRound, key: 'apikey', isNew: true },
-];
-
 const ICON_MAP: Record<string, FC<{ size?: number; className?: string }>> = {
   ShieldAlert,
   AlertTriangle,
   Users,
-};
-
-/* ─────────────────── Sidebar Component ─────────────────── */
-
-const Sidebar: FC<{
-  open: boolean;
-  onClose: () => void;
-  onLogout: () => void;
-  onNavigate: (page: string) => void;
-  activePage?: string;
-}> = ({ open, onClose, onLogout, onNavigate, activePage = 'dashboard' }) => {
-  const { t } = useLanguage();
-
-  return (
-    <>
-      {open && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
-      )}
-      <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-60 flex flex-col bg-[#070b14] border-r border-slate-800/80 transition-transform duration-300 lg:translate-x-0 ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="h-16 flex items-center gap-2.5 px-5 shrink-0">
-          <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-8 w-auto" />
-          <span className="text-lg font-bold text-slate-100 tracking-tight whitespace-nowrap">XR Security</span>
-          <LanguageToggle variant="dark" />
-          <button className="ml-auto lg:hidden text-slate-500 hover:text-slate-300" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.key === activePage;
-            let translatedLabel = item.label;
-            if (item.key === 'dashboard') translatedLabel = t('sidebar.dashboard');
-            if (item.key === 'detection') translatedLabel = t('sidebar.detectionPanel');
-            if (item.key === 'blocked') translatedLabel = t('sidebar.blockedPanel');
-            if (item.key === 'apikey') translatedLabel = t('sidebar.getApiKey');
-
-            return (
-              <button
-                key={item.label}
-                onClick={() => onNavigate(item.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all ${
-                  isActive
-                    ? 'bg-blue-500/10 text-blue-400 shadow-sm shadow-blue-500/5'
-                    : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-300'
-                }`}
-              >
-                <item.icon size={17} strokeWidth={2} />
-                <span>{translatedLabel}</span>
-                {item.isNew && (
-                  <span className="ml-auto text-[10px] font-bold bg-gradient-to-r from-blue-500 to-cyan-400 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">
-                    {t('sidebar.new')}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="p-3 border-t border-slate-800/80">
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-all"
-          >
-            <LogOut size={17} />
-            {t('sidebar.logout')}
-          </button>
-        </div>
-      </aside>
-    </>
-  );
 };
 
 /* ─────────────────── StatCard Component ─────────────────── */
@@ -454,10 +358,10 @@ const ActivityTable: FC = () => {
   );
 };
 
-/* ─────────────────── Main Dashboard ─────────────────── */
+/* ─────────────────── Main Dashboard (content-only) ─────────────────── */
 
-export const Dashboard: FC<DashboardProps> = ({ onLogout, onNavigate }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+export const Dashboard: FC = () => {
+  const { setSidebarOpen } = useSidebar();
   const [stats, setStats] = useState<StatCardData[]>([]);
   const [totalEvents, setTotalEvents] = useState(0);
   const { t } = useLanguage();
@@ -473,61 +377,47 @@ export const Dashboard: FC<DashboardProps> = ({ onLogout, onNavigate }) => {
   }, []);
 
   return (
-    <div className="min-h-screen flex bg-[#020817] font-sans">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onLogout={onLogout}
-        onNavigate={onNavigate}
-        activePage="dashboard"
-      />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="h-16 border-b border-slate-800/70 bg-[#070b14]/80 backdrop-blur-md flex items-center px-4 lg:px-6 gap-4 shrink-0 sticky top-0 z-30">
-          <button className="lg:hidden text-slate-500 hover:text-slate-300" onClick={() => setSidebarOpen(true)}>
-            <Menu size={20} />
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Top Bar */}
+      <header className="h-16 border-b border-slate-800/70 bg-[#070b14]/80 backdrop-blur-md flex items-center px-4 lg:px-6 gap-4 shrink-0 sticky top-0 z-30">
+        <button className="lg:hidden text-slate-500 hover:text-slate-300" onClick={() => setSidebarOpen(true)}>
+          <Menu size={20} />
+        </button>
+        <div className="hidden lg:block w-px h-8 bg-slate-800 mr-2" />
+        <div className="flex-1 min-w-0">
+          <h1 className="text-base font-bold text-slate-100 leading-tight truncate">
+            {t('dashboard.title')}
+          </h1>
+          <p className="text-[11px] text-slate-500 font-medium leading-tight">
+            {t('dashboard.subtitle')} {totalEvents > 0 && `· ${totalEvents} events`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-semibold shadow-md shadow-emerald-500/20 hover:shadow-lg transition-all">
+            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+            {t('dashboard.statusOnline')}
+            <ChevronDown size={12} />
           </button>
-          <div className="hidden lg:block w-px h-8 bg-slate-800 mr-2" />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold text-slate-100 leading-tight truncate">
-              {t('dashboard.title')}
-            </h1>
-            <p className="text-[11px] text-slate-500 font-medium leading-tight">
-              {t('dashboard.subtitle')} {totalEvents > 0 && `· ${totalEvents} events`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-semibold shadow-md shadow-emerald-500/20 hover:shadow-lg transition-all">
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              {t('dashboard.statusOnline')}
-              <ChevronDown size={12} />
-            </button>
-          </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {stats.map((card) => (
-              <StatCard key={card.label} {...card} />
-            ))}
-          </div>
+      {/* Page content */}
+      <main className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {stats.map((card) => (
+            <StatCard key={card.label} {...card} />
+          ))}
+        </div>
 
-          {/* NEW: Threat Globe + Analytics Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ThreatGlobe />
-            <AnalyticsCharts />
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ThreatGlobe />
+          <AnalyticsCharts />
+        </div>
 
-          {/* NEW: Live Log Stream */}
-          <LiveLogStream />
-
-          {/* Activity Logs Table (Detailed) */}
-          <ActivityTable />
-        </main>
-      </div>
+        <LiveLogStream />
+        <ActivityTable />
+      </main>
     </div>
   );
 };

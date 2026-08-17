@@ -6,7 +6,7 @@
  * for any request to protected backend endpoints.
  */
 
-const TOKEN_KEY = 'authToken';
+const TOKEN_KEY = 'token';
 
 /** Store the JWT token received from login/register */
 export function setToken(token: string): void {

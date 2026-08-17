@@ -1,46 +1,39 @@
 import type { FC } from 'react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  LayoutDashboard,
-  KeyRound,
   Radar,
-  ShieldBan,
-  LogOut,
   Menu,
-  X,
   CheckCircle2,
   XCircle,
   RefreshCw,
   Loader2,
+  ShieldAlert,
+  Activity
 } from 'lucide-react';
 
-/* ─────────────────────────── Constants ─────────────────────────── */
-
 const API = '';
-const POLL_INTERVAL = 10_000; // 10 seconds
+const POLL_INTERVAL = 10_000;
 
 import { authFetch } from '../utils/auth';
-import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSidebar } from '../contexts/SidebarContext';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
-interface DetectionPanelProps {
-  userEmail: string;
-  onLogout: () => void;
-  onNavigate: (page: string) => void;
-}
-
 interface ThreatRow {
   attackType: string;
-  sourceIp: string;   // Private/internal IP — used for blocking
-  publicIp: string;   // Public/external IP — used for GeoIP & globe
+  sourceIp: string;
+  publicIp: string;
   severity: string;
   latestUpdate: string;
   countryCode: string;
   country: string;
   lat: number;
   lng: number;
+  score: number;
+  accumulatedScore: number;
+  matchedRules: string[];
+  decision: string;
 }
 
 interface CrowdSecStatus {
@@ -51,146 +44,36 @@ interface CrowdSecStatus {
   scenario: string;
 }
 
-/* ─────────────────────── Nav Items ─────────────────────── */
-
-const NAV_ITEMS = [
-  { label: 'Dashboard', icon: LayoutDashboard, key: 'dashboard' },
-  { label: 'Detection Panel', icon: Radar, key: 'detection' },
-  { label: 'Blocked Panel', icon: ShieldBan, key: 'blocked' },
-  { label: 'Get API Key', icon: KeyRound, key: 'apikey', isNew: true },
-];
-
 const SEVERITY_STYLES: Record<string, string> = {
-  Critical: 'bg-rose-100 text-rose-700 border-rose-200',
-  High: 'bg-red-100 text-red-700 border-red-200',
-  Medium: 'bg-amber-100 text-amber-700 border-amber-200',
-  Low: 'bg-sky-100 text-sky-700 border-sky-200',
+  Critical: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  High: 'bg-red-500/10 text-red-400 border-red-500/20',
+  Medium: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  Low: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
 };
 
 const BLOCK_BTN_STYLES: Record<string, string> = {
-  Critical: 'border-rose-300 text-rose-600 hover:bg-rose-50',
-  High: 'border-red-300 text-red-600 hover:bg-red-50',
-  Medium: 'border-amber-300 text-amber-600 hover:bg-amber-50',
-  Low: 'border-slate-300 text-slate-600 hover:bg-slate-50',
+  Critical: 'border-rose-500/30 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/50',
+  High: 'border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50',
+  Medium: 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50',
+  Low: 'border-slate-500/30 text-slate-400 hover:bg-slate-500/10 hover:border-slate-500/50',
 };
 
-/* ─────────────────── Sidebar ─────────────────── */
-
-const Sidebar: FC<{
-  open: boolean;
-  onClose: () => void;
-  onLogout: () => void;
-  onNavigate: (page: string) => void;
-}> = ({ open, onClose, onLogout, onNavigate }) => {
-  const { t } = useLanguage();
-
-  return (
-    <>
-      {/* Mobile overlay */}
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-60 flex flex-col bg-gradient-to-b from-white via-slate-50 to-blue-50/60 border-r border-slate-200/80 transition-transform duration-300 lg:translate-x-0 ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {/* Logo */}
-        <div className="h-16 flex items-center gap-2.5 px-5 shrink-0">
-          <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-8 w-auto" />
-          <span className="text-lg font-bold text-slate-800 tracking-tight whitespace-nowrap">
-            XR Security
-          </span>
-          <LanguageToggle variant="dark" />
-          <button
-            className="ml-auto lg:hidden text-slate-400 hover:text-slate-600"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.key === 'detection';
-            let translatedLabel = item.label;
-            if (item.key === 'dashboard') translatedLabel = t('sidebar.dashboard');
-            if (item.key === 'detection') translatedLabel = t('sidebar.detectionPanel');
-            if (item.key === 'blocked') translatedLabel = t('sidebar.blockedPanel');
-            if (item.key === 'apikey') translatedLabel = t('sidebar.getApiKey');
-
-            return (
-              <button
-                key={item.label}
-                onClick={() => onNavigate(item.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-100'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                }`}
-              >
-                <item.icon size={17} strokeWidth={2} />
-                <span>{translatedLabel}</span>
-                {item.isNew && (
-                  <span className="ml-auto text-[10px] font-bold bg-gradient-to-r from-blue-500 to-cyan-400 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">
-                    {t('sidebar.new')}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Logout */}
-        <div className="p-3 border-t border-slate-200/80">
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
-          >
-            <LogOut size={17} />
-            {t('sidebar.logout')}
-          </button>
-        </div>
-      </aside>
-    </>
-  );
-};
-
-/* ─────────────────── CrowdSec Status Badge ─────────────────── */
+/* ─────────────────── Components ─────────────────── */
 
 const CrowdSecStatusBadge: FC<{ status: CrowdSecStatus | null; loading: boolean }> = ({ status, loading }) => {
   const { t } = useLanguage();
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-xs font-semibold">
-        <Loader2 size={14} className="animate-spin" />
-        {t('detection.connecting')}
-      </div>
-    );
-  }
-
-  if (!status) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold border border-red-200">
-        <XCircle size={14} />
-        {t('detection.offline')}
-      </div>
-    );
-  }
-
+  if (loading) return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 text-slate-400 text-xs font-semibold">
+      <Loader2 size={14} className="animate-spin" />{t('detection.connecting')}
+    </div>
+  );
+  if (!status) return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs font-semibold border border-red-500/20">
+      <XCircle size={14} />{t('detection.offline')}
+    </div>
+  );
   return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-      status.connected
-        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-        : 'bg-amber-50 text-amber-700 border-amber-200'
-    }`}>
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border ${status.connected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
       {status.connected ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
       <span>CrowdSec {status.connected ? t('detection.connected') : t('detection.disconnected')}</span>
       <span className="text-[10px] opacity-60">|</span>
@@ -199,7 +82,32 @@ const CrowdSecStatusBadge: FC<{ status: CrowdSecStatus | null; loading: boolean 
   );
 };
 
-/* ─────────────────── Threat Table (Live) ─────────────────── */
+const ScoreBar: FC<{ score: number; maxScore: number }> = ({ score, maxScore }) => {
+  const ratio = Math.min(score / maxScore, 1);
+  const percent = ratio * 100;
+  let color = 'bg-emerald-400';
+  if (percent >= 100) color = 'bg-rose-500 animate-pulse';
+  else if (percent >= 70) color = 'bg-amber-400';
+  return (
+    <div className="w-24">
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-[10px] font-mono text-slate-400">Score</span>
+        <span className={`text-[10px] font-mono font-bold ${percent >= 100 ? 'text-rose-400' : 'text-slate-300'}`}>{score}/{maxScore}</span>
+      </div>
+      <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+};
+
+const DecisionBadge: FC<{ decision: string }> = ({ decision }) => {
+  switch (decision?.toUpperCase()) {
+    case 'BLOCK': return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20"><ShieldAlert size={10} /> BLOCK</span>;
+    case 'ALERT': return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20"><Activity size={10} /> ALERT</span>;
+    default: return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">LOG</span>;
+  }
+};
 
 const ThreatTable: FC<{
   threats: ThreatRow[];
@@ -207,133 +115,110 @@ const ThreatTable: FC<{
   onRefresh: () => void;
   onBlock: (ip: string) => void;
   blockingIps: Set<string>;
-}> = ({ threats, loading, onRefresh, onBlock, blockingIps }) => {
+  blockThreshold: number;
+}> = ({ threats, loading, onRefresh, onBlock, blockingIps, blockThreshold }) => {
   const { t } = useLanguage();
-
   return (
-  <div className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-2xl shadow-md shadow-slate-200/40 overflow-hidden">
-    {/* Header */}
-    <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100">
-      <div className="flex items-center gap-3">
-        <div className="bg-gradient-to-br from-red-400 to-rose-500 p-2 rounded-xl text-white shadow-md shadow-red-200/50">
-          <Radar size={16} />
-        </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold text-slate-800 leading-tight truncate">
-              {t('detection.title')}
-            </h1>
-            <p className="text-[11px] text-slate-400 font-medium leading-tight">
-              {t('detection.subtitle')}
-            </p>
+    <div className="bg-[#0b1120] border border-slate-800 rounded-2xl shadow-xl shadow-black/20 overflow-hidden">
+      <div className="px-6 py-4 flex items-center justify-between border-b border-slate-800 bg-slate-900/50">
+        <div className="flex items-center gap-3">
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20"><Radar size={16} /></div>
+          <div>
+            <h1 className="text-base font-bold text-slate-100">{t('detection.title')}</h1>
+            <p className="text-[11px] text-slate-400">Real-time threat monitoring and scoring</p>
           </div>
+        </div>
+        <button onClick={onRefresh} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-50">
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />{t('detection.refresh')}
+        </button>
       </div>
-      <button
-        onClick={onRefresh}
-        disabled={loading}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all disabled:opacity-50"
-      >
-        <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-        {t('detection.refresh')}
-      </button>
-    </div>
-
-    {/* Table */}
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-200/80 bg-slate-50/60">
-            <th className="px-6 py-3 font-semibold">{t('detection.colAttack')}</th>
-            <th className="px-4 py-3 font-semibold">{t('detection.colSource')}</th>
-            <th className="px-4 py-3 font-semibold">{t('detection.colSeverity')}</th>
-            <th className="px-4 py-3 font-semibold">{t('detection.colUpdate')}</th>
-            <th className="px-4 py-3 font-semibold text-right">{t('detection.colAction')}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {threats.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm">
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 size={16} className="animate-spin" />
-                    {t('detection.loadingThreats')}
-                  </div>
-                ) : (
-                  t('detection.noThreats')
-                )}
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-800 bg-slate-900/30">
+              <th className="px-4 py-3 font-semibold pl-6">{t('detection.colAttack')}</th>
+              <th className="px-4 py-3 font-semibold">{t('detection.colSource')}</th>
+              <th className="px-4 py-3 font-semibold">Rules</th>
+              <th className="px-4 py-3 font-semibold">Score</th>
+              <th className="px-4 py-3 font-semibold">Acc. Score</th>
+              <th className="px-4 py-3 font-semibold">Decision</th>
+              <th className="px-4 py-3 font-semibold">{t('detection.colSeverity')}</th>
+              <th className="px-4 py-3 font-semibold text-right pr-6">{t('detection.colAction')}</th>
             </tr>
-          ) : (
-            threats.map((row, i) => (
-              <tr key={i} className="hover:bg-blue-50/40 transition-colors">
-                <td className="px-6 py-3.5 font-semibold text-slate-700">
-                  <div className="flex items-center gap-2">
-                    {row.attackType.toLowerCase() === 'crowdsec-detection' ? t('attackType.crowdsecDetection') : row.attackType}
-                    {row.attackType.includes('CrowdSec') && (
-                      <span className="text-[9px] font-bold bg-gradient-to-r from-violet-500 to-purple-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide">
-                        CS
-                      </span>
-                    )}
+          </thead>
+          <tbody className="divide-y divide-slate-800/50">
+            {threats.length === 0 ? (
+              <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 text-sm">
+                {loading ? <div className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin text-indigo-400" />{t('detection.loadingThreats')}</div> : t('detection.noThreats')}
+              </td></tr>
+            ) : threats.map((row, i) => (
+              <tr key={i} className="hover:bg-slate-800/50 transition-colors">
+                <td className="px-4 py-3.5 pl-6 font-semibold text-slate-200">{row.attackType}</td>
+                <td className="px-4 py-3.5 font-mono text-xs text-slate-300">{row.sourceIp}</td>
+                <td className="px-4 py-3.5">
+                  <div className="flex flex-wrap gap-1 max-w-[200px]">
+                    {(row.matchedRules || []).slice(0, 3).map((rule, idx) => (
+                      <span key={idx} className="text-[9px] font-mono bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 truncate max-w-[120px]">{rule}</span>
+                    ))}
+                    {(row.matchedRules || []).length > 3 && <span className="text-[9px] font-mono text-slate-500">+{row.matchedRules.length - 3}</span>}
                   </div>
                 </td>
-                <td className="px-4 py-3.5 font-mono text-xs text-slate-600">
-                  {row.sourceIp}
-                </td>
-                <td className="px-4 py-3.5">
-                  <span
-                    className={`text-[11px] font-bold px-3 py-1 rounded-full border ${
-                      SEVERITY_STYLES[row.severity] || SEVERITY_STYLES.Low
-                    }`}
-                  >
-                    {t(`severity.${(row.severity || 'low').toLowerCase()}`)}
-                  </span>
-                </td>
-                <td className="px-4 py-3.5 text-xs text-slate-500">
-                  {row.latestUpdate}
-                </td>
-                <td className="px-4 py-3.5 text-right">
-                  <button
-                    onClick={() => onBlock(row.sourceIp)}
-                    disabled={blockingIps.has(row.sourceIp)}
-                    className={`text-xs font-semibold px-3.5 py-1.5 rounded-lg border transition-all ${
-                      blockingIps.has(row.sourceIp)
-                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200'
-                        : (BLOCK_BTN_STYLES[row.severity] || BLOCK_BTN_STYLES.Low)
-                    }`}
-                  >
-                    {blockingIps.has(row.sourceIp) ? t('detection.blocked') : t('detection.block')}
+                <td className="px-4 py-3.5"><span className={`text-xs font-bold font-mono ${row.score >= 12 ? 'text-rose-400' : row.score >= 8 ? 'text-amber-400' : 'text-slate-300'}`}>+{row.score || 0}</span></td>
+                <td className="px-4 py-3.5"><ScoreBar score={row.accumulatedScore || row.score || 0} maxScore={blockThreshold} /></td>
+                <td className="px-4 py-3.5"><DecisionBadge decision={row.decision} /></td>
+                <td className="px-4 py-3.5"><span className={`text-[10px] font-bold px-2 py-1 rounded-full border uppercase tracking-wider ${SEVERITY_STYLES[row.severity] || SEVERITY_STYLES.Low}`}>{t(`severity.${(row.severity || 'low').toLowerCase()}`) || row.severity}</span></td>
+                <td className="px-4 py-3.5 text-right pr-6">
+                  <button onClick={() => onBlock(row.sourceIp)} disabled={blockingIps.has(row.sourceIp) || row.decision?.toUpperCase() === 'BLOCK'}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${blockingIps.has(row.sourceIp) || row.decision?.toUpperCase() === 'BLOCK' ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-slate-700' : (BLOCK_BTN_STYLES[row.severity] || BLOCK_BTN_STYLES.Low)}`}>
+                    {blockingIps.has(row.sourceIp) || row.decision?.toUpperCase() === 'BLOCK' ? 'Blocked' : 'Block'}
                   </button>
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-
-    {/* Footer - XSS Patterns */}
-    <div className="px-6 py-3 bg-slate-50/60 border-t border-slate-100">
-      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mb-2">
-        {t('detection.xssPatterns')}
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        {['<script>', '<img>', '<svg>', '<embed>', '<style>', 'javascript:', 'alert()', 'prompt()', '<input>', '<object>', '<meta>', '<frameset>', '%3Cscript', '%3Cimg'].map((p) => (
-          <span key={p} className="text-[10px] font-mono bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">
-            {p}
-          </span>
-        ))}
-        <span className="text-[10px] text-slate-400 font-medium self-center">{t('detection.morePatterns')}</span>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
-  </div>
   );
 };
 
-/* ────────────── Live Threat Visualization ────────────── */
+const ActiveResponseFeed: FC<{ threats: ThreatRow[]; blockThreshold: number }> = ({ threats, blockThreshold }) => {
+  const feed = threats.filter(t => t.decision === 'BLOCK' || t.decision === 'ALERT').slice(0, 5);
+  return (
+    <div className="bg-[#0b1120] border border-slate-800 rounded-2xl shadow-xl shadow-black/20 overflow-hidden flex flex-col h-full">
+      <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex items-center gap-2">
+        <Activity size={16} className="text-indigo-400" />
+        <h3 className="text-sm font-bold text-slate-100">Active Response Feed</h3>
+      </div>
+      <div className="flex-1 p-4 overflow-y-auto">
+        {feed.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-xs text-slate-500">No active responses yet.</div>
+        ) : (
+          <div className="space-y-3">
+            {feed.map((item, i) => (
+              <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-slate-800/30 border border-slate-800/50">
+                <div className="shrink-0 mt-0.5">{item.decision === 'BLOCK' ? <ShieldAlert size={14} className="text-rose-400" /> : <Activity size={14} className="text-amber-400" />}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-200 truncate">{item.sourceIp}</span>
+                    <span className="text-[10px] text-slate-500">{new Date(item.latestUpdate).toLocaleTimeString()}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate">{item.attackType}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${item.decision === 'BLOCK' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>{item.decision}</span>
+                    <span className="text-[10px] font-mono text-slate-500">Score: {item.accumulatedScore}/{blockThreshold}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const THREAT_COLORS = ['#22d3ee', '#fb923c', '#f87171', '#a78bfa', '#34d399', '#f472b6'];
-
-// SOC center point (Jakarta HQ)
 const SOC_CENTER = { lat: -6.2088, lng: 106.8456 };
 
 const LiveThreatViz: FC<{ threats: ThreatRow[] }> = ({ threats }) => {
@@ -343,330 +228,113 @@ const LiveThreatViz: FC<{ threats: ThreatRow[] }> = ({ threats }) => {
   const [GlobeComponent, setGlobeComponent] = useState<any>(null);
   const { t } = useLanguage();
 
-  // Derive globe points from actual threats
   const ipMap = new Map<string, ThreatRow>();
-  for (const t of threats) {
-    if (!ipMap.has(t.sourceIp)) {
-      ipMap.set(t.sourceIp, t);
-    }
-  }
-
+  for (const threat of threats) { if (!ipMap.has(threat.sourceIp)) ipMap.set(threat.sourceIp, threat); }
   const uniqueIps = Array.from(ipMap.keys());
   const globePoints = uniqueIps.map((ip, i) => {
-    const t = ipMap.get(ip)!;
-    return {
-      lat: t.lat || 0,
-      lng: t.lng || 0,
-      ip,
-      country: t.country || t.countryCode || '--',
-      color: THREAT_COLORS[i % THREAT_COLORS.length],
-      size: 0.6,
-    };
+    const threat = ipMap.get(ip)!;
+    return { lat: threat.lat || 0, lng: threat.lng || 0, ip, country: threat.country || threat.countryCode || '--', color: THREAT_COLORS[i % THREAT_COLORS.length], size: 0.6 };
   });
+  const globeArcs = globePoints.map((p) => ({ startLat: p.lat, startLng: p.lng, endLat: SOC_CENTER.lat, endLng: SOC_CENTER.lng, color: p.color }));
 
-  const globeArcs = globePoints.map((p) => ({
-    startLat: p.lat,
-    startLng: p.lng,
-    endLat: SOC_CENTER.lat,
-    endLng: SOC_CENTER.lng,
-    color: p.color,
-  }));
-
-  // Dynamically import react-globe.gl (it's a default export)
+  useEffect(() => { import('react-globe.gl').then((mod) => setGlobeComponent(() => mod.default)); }, []);
   useEffect(() => {
-    import('react-globe.gl').then((mod) => {
-      setGlobeComponent(() => mod.default);
-    });
+    const el = containerRef.current; if (!el) return;
+    const observer = new ResizeObserver((entries) => { for (const entry of entries) { const { width } = entry.contentRect; setGlobeSize({ width, height: Math.min(450, width * 0.75) }); } });
+    observer.observe(el); return () => observer.disconnect();
   }, []);
-
-  // Resize observer
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width } = entry.contentRect;
-        setGlobeSize({ width, height: Math.min(450, width * 0.75) });
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Configure globe on mount
   const handleGlobeReady = useCallback(() => {
-    const globe = globeRef.current;
-    if (!globe) return;
-
-    // Auto-rotate
+    const globe = globeRef.current; if (!globe) return;
     const controls = globe.controls();
-    if (controls) {
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.8;
-      controls.enableZoom = true;
-    }
-
-    // Point camera at Southeast Asia
+    if (controls) { controls.autoRotate = true; controls.autoRotateSpeed = 0.8; controls.enableZoom = true; }
     globe.pointOfView({ lat: -2, lng: 115, altitude: 2.2 }, 1000);
   }, []);
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-lg shadow-slate-300/30 border border-slate-200/60">
-      {/* Header */}
-      <div className="bg-slate-900 px-6 py-3 flex items-center gap-2.5">
-        <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/40" />
-        <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">
-          {t('detection.liveViz')}
-        </span>
-        <span className="ml-auto text-[10px] text-slate-500 font-medium">
-          {uniqueIps.length} {t('detection.activeSources')}
-        </span>
+    <div className="rounded-2xl overflow-hidden shadow-xl shadow-black/20 border border-slate-800 h-full flex flex-col">
+      <div className="bg-slate-900 px-6 py-4 flex items-center gap-2.5 border-b border-slate-800">
+        <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+        <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">{t('detection.liveViz')}</span>
+        <span className="ml-auto text-[10px] text-slate-500 font-medium">{uniqueIps.length} {t('detection.activeSources')}</span>
       </div>
-
-      {/* Globe Area */}
-      <div
-        ref={containerRef}
-        className="relative bg-gradient-to-b from-[#020617] via-[#0f172a] to-[#020617] flex items-center justify-center overflow-hidden"
-        style={{ minHeight: '400px' }}
-        onMouseEnter={() => {
-          const controls = globeRef.current?.controls();
-          if (controls) controls.autoRotate = false;
-        }}
-        onMouseLeave={() => {
-          const controls = globeRef.current?.controls();
-          if (controls) controls.autoRotate = true;
-        }}
-      >
-        {/* Ambient glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-500/8 rounded-full blur-[120px] pointer-events-none" />
-
+      <div ref={containerRef} className="relative bg-[#020617] flex-1 flex items-center justify-center overflow-hidden min-h-[300px]"
+        onMouseEnter={() => { const c = globeRef.current?.controls(); if (c) c.autoRotate = false; }}
+        onMouseLeave={() => { const c = globeRef.current?.controls(); if (c) c.autoRotate = true; }}>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
         {GlobeComponent ? (
-          <GlobeComponent
-            ref={globeRef}
-            width={globeSize.width}
-            height={globeSize.height}
-            backgroundColor="rgba(0,0,0,0)"
-            globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-            atmosphereColor="#dc14ff"
-            atmosphereAltitude={0.2}
-            // Points
-            pointsData={globePoints}
-            pointLat="lat"
-            pointLng="lng"
-            pointColor="color"
-            pointAltitude={0.01}
-            pointRadius="size"
-            // Point rings
-            ringsData={globePoints}
-            ringLat="lat"
-            ringLng="lng"
-            ringColor={() => (t: number) => `rgba(34,211,238,${1 - t})`}
-            ringMaxRadius={3}
-            ringPropagationSpeed={2}
-            ringRepeatPeriod={1400}
-            // Arcs
-            arcsData={globeArcs}
-            arcStartLat="startLat"
-            arcStartLng="startLng"
-            arcEndLat="SOC_CENTER.lat"
-            arcEndLng="SOC_CENTER.lng"
-            arcColor="color"
-            arcDashLength={0.4}
-            arcDashGap={0.2}
-            arcDashAnimateTime={1500}
-            arcStroke={0.5}
-            // Labels — show country names on the globe
-            labelsData={globePoints}
-            labelLat="lat"
-            labelLng="lng"
-            labelText="country"
-            labelSize={1.4}
-            labelDotRadius={0.4}
-            labelColor={() => 'rgba(255, 255, 255, 0.85)'}
-            labelAltitude={0.02}
-            labelResolution={2}
-            onGlobeReady={handleGlobeReady}
-          />
+          <GlobeComponent ref={globeRef} width={globeSize.width} height={globeSize.height} backgroundColor="rgba(0,0,0,0)"
+            globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg" atmosphereColor="#6366f1" atmosphereAltitude={0.2}
+            pointsData={globePoints} pointLat="lat" pointLng="lng" pointColor="color" pointAltitude={0.01} pointRadius="size"
+            ringsData={globePoints} ringLat="lat" ringLng="lng" ringColor={() => (t: number) => `rgba(34,211,238,${1 - t})`} ringMaxRadius={3} ringPropagationSpeed={2} ringRepeatPeriod={1400}
+            arcsData={globeArcs} arcStartLat="startLat" arcStartLng="startLng" arcEndLat="SOC_CENTER.lat" arcEndLng="SOC_CENTER.lng" arcColor="color" arcDashLength={0.4} arcDashGap={0.2} arcDashAnimateTime={1500} arcStroke={0.5}
+            labelsData={globePoints} labelLat="lat" labelLng="lng" labelText="country" labelSize={1.4} labelDotRadius={0.4} labelColor={() => 'rgba(255, 255, 255, 0.85)'} labelAltitude={0.02} labelResolution={2}
+            onGlobeReady={handleGlobeReady} />
         ) : (
-          <div className="flex items-center justify-center h-[400px]">
-            <div className="flex flex-col items-center gap-3">
-              <svg className="animate-spin h-8 w-8 text-cyan-400" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="text-xs text-slate-500 font-medium">{t('detection.loadingGlobe')}</span>
-            </div>
-          </div>
+          <div className="flex flex-col items-center gap-3"><Loader2 className="animate-spin text-indigo-400" size={32} /><span className="text-xs text-slate-500">{t('detection.loadingGlobe')}</span></div>
         )}
-      </div>
-
-      {/* IP List — derived from real threats */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-800 px-6 py-4 space-y-2">
-        {uniqueIps.length === 0 ? (
-          <div className="text-center text-slate-500 text-xs py-3">
-            {t('detection.noActiveThreats')}
-          </div>
-        ) : (
-          uniqueIps.slice(0, 8).map((ip, i) => (
-            <div
-              key={ip}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 backdrop-blur-sm hover:bg-white/10 transition-colors"
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: THREAT_COLORS[i % THREAT_COLORS.length] }}
-              />
-              <span className="font-mono text-sm font-semibold text-white/90">
-                {ip}
-              </span>
-              <span className="ml-auto text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                {t(`severity.${(threats.find((t) => t.sourceIp === ip)?.severity || 'low').toLowerCase()}`)}
-              </span>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Bottom label */}
-      <div className="bg-slate-800 px-6 py-2.5 flex justify-center">
-        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em]">
-          ✦ {t('detection.liveViz')} ✦
-        </span>
       </div>
     </div>
   );
 };
 
-/* ─────────────────── Main Component ─────────────────── */
+/* ─────────────────── Main Component (content-only) ─────────────────── */
 
-export const DetectionPanel: FC<DetectionPanelProps> = ({ onLogout, onNavigate }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+export const DetectionPanel: FC = () => {
+  const { setSidebarOpen } = useSidebar();
   const { t } = useLanguage();
   const [threats, setThreats] = useState<ThreatRow[]>([]);
   const [threatsLoading, setThreatsLoading] = useState(true);
   const [csStatus, setCsStatus] = useState<CrowdSecStatus | null>(null);
   const [csLoading, setCsLoading] = useState(true);
   const [blockingIps, setBlockingIps] = useState<Set<string>>(new Set());
+  const [blockThreshold, setBlockThreshold] = useState(10);
 
-  // Fetch threats from backend
+  const fetchConfig = useCallback(async () => {
+    try { const res = await authFetch(`${API}/api/admin/config`); if (res.ok) { const data = await res.json(); setBlockThreshold(data.blockThreshold || 10); } } catch {}
+  }, []);
+
   const fetchThreats = useCallback(async () => {
     setThreatsLoading(true);
-    try {
-      const res = await authFetch(`${API}/api/detection/threats`);
-      const data = await res.json();
-      setThreats(data.threats || []);
-    } catch (err) {
-      console.error('Failed to fetch threats:', err);
-    } finally {
-      setThreatsLoading(false);
-    }
+    try { const res = await authFetch(`${API}/api/detection/threats`); const data = await res.json(); setThreats(data.threats || []); }
+    catch (err) { console.error('Failed to fetch threats:', err); } finally { setThreatsLoading(false); }
   }, []);
 
-  // Fetch CrowdSec status
   const fetchStatus = useCallback(async () => {
-    try {
-      const res = await authFetch(`${API}/api/crowdsec/status`);
-      const data = await res.json();
-      setCsStatus(data);
-    } catch {
-      setCsStatus(null);
-    } finally {
-      setCsLoading(false);
-    }
+    try { const res = await authFetch(`${API}/api/crowdsec/status`); const data = await res.json(); setCsStatus(data); }
+    catch { setCsStatus(null); } finally { setCsLoading(false); }
   }, []);
 
-  // Initial fetch + polling
   useEffect(() => {
-    fetchThreats();
-    fetchStatus();
-
-    const interval = setInterval(() => {
-      fetchThreats();
-      fetchStatus();
-    }, POLL_INTERVAL);
-
+    fetchConfig(); fetchThreats(); fetchStatus();
+    const interval = setInterval(() => { fetchThreats(); fetchStatus(); }, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchThreats, fetchStatus]);
+  }, [fetchConfig, fetchThreats, fetchStatus]);
 
-  // Block IP handler — calls real API with optimistic update
   const handleBlockIP = useCallback(async (ip: string) => {
-    // Optimistic: immediately remove from local state
     setBlockingIps((prev) => new Set(prev).add(ip));
-    setThreats((prev) => prev.filter((t) => t.sourceIp !== ip));
     try {
-      const res = await authFetch(`${API}/api/detection/block`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip }),
-      });
-      if (!res.ok) {
-        // Revert on failure — re-fetch from server
-        fetchThreats();
-      }
-    } catch (err) {
-      console.error('Failed to block IP:', err);
-      // Revert on error
-      fetchThreats();
-    } finally {
-      setBlockingIps((prev) => {
-        const next = new Set(prev);
-        next.delete(ip);
-        return next;
-      });
+      const res = await authFetch(`${API}/api/detection/block`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip }) });
+      if (res.ok) fetchThreats();
+    } catch (err) { console.error('Failed to block IP:', err); } finally {
+      setBlockingIps((prev) => { const next = new Set(prev); next.delete(ip); return next; });
     }
   }, [fetchThreats]);
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-sky-50 via-blue-50/30 to-indigo-50/40 font-sans">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onLogout={onLogout}
-        onNavigate={onNavigate}
-      />
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="h-16 border-b border-slate-200/70 bg-white/60 backdrop-blur-md flex items-center px-4 lg:px-6 gap-4 shrink-0 sticky top-0 z-30">
-          <button
-            className="lg:hidden text-slate-400 hover:text-slate-600"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu size={20} />
-          </button>
-
-          <div className="hidden lg:block w-px h-8 bg-slate-200 mr-2" />
-
-          <div className="flex items-center gap-3">
-            <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-8 w-auto" />
-            <h1 className="text-lg font-bold text-slate-800 tracking-tight">
-              {t('detection.title')}
-            </h1>
-          </div>
-
-          {/* CrowdSec Status */}
-          <div className="ml-auto">
-            <CrowdSecStatusBadge status={csStatus} loading={csLoading} />
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
-          {/* Threat Table */}
-          <ThreatTable
-            threats={threats}
-            loading={threatsLoading}
-            onRefresh={fetchThreats}
-            onBlock={handleBlockIP}
-            blockingIps={blockingIps}
-          />
-
-          {/* Live Threat Visualization */}
-          <LiveThreatViz threats={threats} />
-        </main>
-      </div>
+    <div className="flex flex-col flex-1 min-h-0">
+      <header className="h-16 border-b border-slate-800 bg-[#0b1120]/80 backdrop-blur-md flex items-center px-4 lg:px-6 gap-4 shrink-0 sticky top-0 z-30">
+        <button className="lg:hidden text-slate-400 hover:text-slate-200" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button>
+        <div className="hidden lg:block w-px h-8 bg-slate-800 mr-2" />
+        <h1 className="text-lg font-bold text-slate-100 tracking-tight">{t('detection.title')}</h1>
+        <div className="ml-auto"><CrowdSecStatusBadge status={csStatus} loading={csLoading} /></div>
+      </header>
+      <main className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
+        <ThreatTable threats={threats} loading={threatsLoading} onRefresh={fetchThreats} onBlock={handleBlockIP} blockingIps={blockingIps} blockThreshold={blockThreshold} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2"><LiveThreatViz threats={threats} /></div>
+          <div className="lg:col-span-1"><ActiveResponseFeed threats={threats} blockThreshold={blockThreshold} /></div>
+        </div>
+      </main>
     </div>
   );
 };
