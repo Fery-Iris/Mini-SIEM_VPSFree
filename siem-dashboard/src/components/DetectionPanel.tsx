@@ -266,7 +266,7 @@ const LiveThreatViz: FC<{ threats: ThreatRow[] }> = ({ threats }) => {
             globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg" atmosphereColor="#6366f1" atmosphereAltitude={0.2}
             pointsData={globePoints} pointLat="lat" pointLng="lng" pointColor="color" pointAltitude={0.01} pointRadius="size"
             ringsData={globePoints} ringLat="lat" ringLng="lng" ringColor={() => (t: number) => `rgba(34,211,238,${1 - t})`} ringMaxRadius={3} ringPropagationSpeed={2} ringRepeatPeriod={1400}
-            arcsData={globeArcs} arcStartLat="startLat" arcStartLng="startLng" arcEndLat="SOC_CENTER.lat" arcEndLng="SOC_CENTER.lng" arcColor="color" arcDashLength={0.4} arcDashGap={0.2} arcDashAnimateTime={1500} arcStroke={0.5}
+            arcsData={globeArcs} arcStartLat="startLat" arcStartLng="startLng" arcEndLat="endLat" arcEndLng="endLng" arcColor="color" arcDashLength={0.4} arcDashGap={0.2} arcDashAnimateTime={1500} arcStroke={0.5}
             labelsData={globePoints} labelLat="lat" labelLng="lng" labelText="country" labelSize={1.4} labelDotRadius={0.4} labelColor={() => 'rgba(255, 255, 255, 0.85)'} labelAltitude={0.02} labelResolution={2}
             onGlobeReady={handleGlobeReady} />
         ) : (

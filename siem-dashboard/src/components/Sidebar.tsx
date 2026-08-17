@@ -10,6 +10,7 @@ import {
   Bell,
   LogOut,
   X,
+  Globe,
 } from 'lucide-react';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -18,7 +19,8 @@ export const NAV_ITEMS = [
   { label: 'Monitoring',  icon: LayoutDashboard, href: '/dashboard' },
   { label: 'Detection',   icon: Radar,            href: '/detection' },
   { label: 'Blocked IPs', icon: ShieldBan,        href: '/blocked' },
-  { label: 'Alerts',      icon: Bell,             href: '/alerts', isNew: true },
+  { label: 'Threat Intel',icon: Globe,            href: '/threat-intel', isNew: true },
+  { label: 'Alerts',      icon: Bell,             href: '/alerts' },
   { label: 'API Key',     icon: KeyRound,         href: '/apikey' },
 ];
 
@@ -42,6 +44,7 @@ export const Sidebar: FC<SidebarProps> = ({ open, onClose, onLogout }) => {
     '/dashboard':           t('sidebar.dashboard') !== 'sidebar.dashboard' ? t('sidebar.dashboard') : 'Monitoring',
     '/dashboard/detection': t('sidebar.detectionPanel') !== 'sidebar.detectionPanel' ? t('sidebar.detectionPanel') : 'Detection',
     '/dashboard/blocked':   t('sidebar.blockedPanel') !== 'sidebar.blockedPanel' ? t('sidebar.blockedPanel') : 'Blocked IPs',
+    '/dashboard/threat-intel': 'Threat Intel',
     '/dashboard/alerts':    'Alerts',
     '/dashboard/apikey':    t('sidebar.getApiKey') !== 'sidebar.getApiKey' ? t('sidebar.getApiKey') : 'API Key',
   };

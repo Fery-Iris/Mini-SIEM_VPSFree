@@ -50,7 +50,7 @@ export const WAF_RULES: WAFRule[] = [
     level: 12,
     category: "Critical",
     target: ["url", "body"],
-    description: "SQL injection attempt detected in request parameters",
+    description: "SQL injection attempt detected in request parameters (OWASP A03:2021 - Injection)",
   },
   {
     id: "CMDI_001",
@@ -59,7 +59,7 @@ export const WAF_RULES: WAFRule[] = [
     level: 13,
     category: "Critical",
     target: ["url", "body"],
-    description: "OS command injection attempt via shell metacharacters",
+    description: "OS command injection attempt via shell metacharacters (OWASP A03:2021 - Injection)",
   },
   {
     id: "CODE_001",
@@ -68,7 +68,7 @@ export const WAF_RULES: WAFRule[] = [
     level: 13,
     category: "Critical",
     target: ["url", "body"],
-    description: "Server-side code injection attempt",
+    description: "Server-side code injection attempt (OWASP A03:2021 - Injection)",
   },
   {
     id: "JNDI_001",
@@ -77,7 +77,25 @@ export const WAF_RULES: WAFRule[] = [
     level: 14,
     category: "Critical",
     target: ["url", "body", "headers", "user-agent"],
-    description: "Log4Shell/JNDI lookup injection attempt",
+    description: "Log4Shell/JNDI lookup injection attempt (OWASP A06:2021 - Vulnerable Components)",
+  },
+  {
+    id: "SHELLSHOCK_001",
+    name: "Shellshock Vulnerability",
+    regex: /\(\)\s*\{\s*:\s*;\s*\}\s*;/i,
+    level: 14,
+    category: "Critical",
+    target: ["headers", "user-agent"],
+    description: "Shellshock remote command execution attempt (OWASP A06:2021 - Vulnerable Components)",
+  },
+  {
+    id: "DESERIAL_001",
+    name: "Insecure Deserialization",
+    regex: /(?:O:[0-9]+:"[a-z0-9_]+":|rO0ABXNy|Tzo[0-9]+:)/i,
+    level: 12,
+    category: "Critical",
+    target: ["body", "headers", "url"],
+    description: "Insecure Deserialization payload detected (PHP/Java) (OWASP A08:2021 - Software and Data Integrity Failures)",
   },
 
   // ── High (Level 8-11): Serious but not always instant-block ──
@@ -88,7 +106,7 @@ export const WAF_RULES: WAFRule[] = [
     level: 8,
     category: "High",
     target: ["url", "body"],
-    description: "Cross-site scripting attempt via HTML/JS injection",
+    description: "Cross-site scripting attempt via HTML/JS injection (OWASP A03:2021 - Injection)",
   },
   {
     id: "LFI_001",
@@ -97,7 +115,7 @@ export const WAF_RULES: WAFRule[] = [
     level: 9,
     category: "High",
     target: ["url", "body"],
-    description: "Local/remote file inclusion via path traversal",
+    description: "Local/remote file inclusion via path traversal (OWASP A01:2021 - Broken Access Control)",
   },
   {
     id: "NOSQL_001",
@@ -106,7 +124,16 @@ export const WAF_RULES: WAFRule[] = [
     level: 9,
     category: "High",
     target: ["url", "body"],
-    description: "NoSQL injection attempt targeting MongoDB operators",
+    description: "NoSQL injection attempt targeting MongoDB operators (OWASP A03:2021 - Injection)",
+  },
+  {
+    id: "LDAP_001",
+    name: "LDAP Injection",
+    regex: /(?:\(\w+=[^\)]+\)|\(&|\(\|)/i,
+    level: 8,
+    category: "High",
+    target: ["url", "body"],
+    description: "LDAP injection attempt (OWASP A03:2021 - Injection)",
   },
   {
     id: "XXE_001",
@@ -115,7 +142,16 @@ export const WAF_RULES: WAFRule[] = [
     level: 10,
     category: "High",
     target: ["body"],
-    description: "XXE attack attempting to read server files via XML",
+    description: "XXE attack attempting to read server files via XML (OWASP A05:2021 - Security Misconfiguration)",
+  },
+  {
+    id: "DATA_LEAK_001",
+    name: "Sensitive Data Exposure",
+    regex: /(?:BEGIN RSA PRIVATE KEY|BEGIN DSA PRIVATE KEY|BEGIN EC PRIVATE KEY|BEGIN OPENSSH PRIVATE KEY|sk_live_[a-zA-Z0-9]{24,})/i,
+    level: 10,
+    category: "High",
+    target: ["body", "url", "headers"],
+    description: "Sensitive data exposure like Private Keys or API secrets (OWASP A02:2021 - Cryptographic Failures)",
   },
 
   // ── Medium (Level 4-7): Suspicious but common in legitimate traffic ──
@@ -126,7 +162,7 @@ export const WAF_RULES: WAFRule[] = [
     level: 7,
     category: "Medium",
     target: ["url", "body"],
-    description: "SSRF attempt targeting internal services or cloud metadata",
+    description: "SSRF attempt targeting internal services or cloud metadata (OWASP A10:2021 - Server-Side Request Forgery)",
   },
   {
     id: "SCANNER_001",
@@ -135,16 +171,25 @@ export const WAF_RULES: WAFRule[] = [
     level: 6,
     category: "Medium",
     target: ["user-agent"],
-    description: "Known malicious scanner or security tool detected",
+    description: "Known malicious scanner or security tool detected (OWASP A05:2021 - Security Misconfiguration)",
   },
   {
     id: "PROBE_001",
     name: "Suspicious Path Probe",
-    regex: /(?:\/wp-admin|\/wp-login|\/administrator|\/phpmyadmin|\/\.env|\/\.git|\/config\.php|\/xmlrpc\.php)/i,
+    regex: /(?:\/wp-admin|\/wp-login|\/administrator|\/phpmyadmin|\/\.env|\/\.git|\/config\.php|\/xmlrpc\.php|\/\.ssh)/i,
     level: 4,
     category: "Medium",
     target: ["url"],
-    description: "Probing for common admin panels or sensitive files",
+    description: "Probing for common admin panels or sensitive files (OWASP A01:2021 / A05:2021)",
+  },
+  {
+    id: "AUTH_001",
+    name: "Authentication Bypass Attempt",
+    regex: /(?:admin'|' OR 1=1|' OR '1'='1|1' OR '1'='1)/i,
+    level: 7,
+    category: "Medium",
+    target: ["url", "body"],
+    description: "Attempted authentication bypass via basic SQLi logic (OWASP A07:2021 - Identification and Authentication Failures)",
   },
 
   // ── Low / Noise (Level 1-3): Informational, usually not a threat ──

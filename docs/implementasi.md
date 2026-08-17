@@ -417,4 +417,41 @@ Akses melalui **Dashboard → Alerts → Scoring Settings**:
 
 ---
 
+## 12. Penanganan Error Console (Three.js & Globe Visualization)
+
+### Error Description: THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN
+
+Saat membuka **Detection Panel**, muncul pesan warning/error berikut pada browser Developer Console:
+
+```text
+THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN. The "position" attribute is likely to have NaN values.
+TubeGeometry {isBufferGeometry: true, uuid: '...', name: '', type: 'TubeGeometry', ...}
+```
+
+### Penyebab Masalah (Root Cause)
+
+Error ini disebabkan oleh kesalahan nama atribut pada props komponen 3D Globe Visualization (`react-globe.gl` / `Three.js`) di file `src/components/DetectionPanel.tsx`:
+
+1. Komponen `react-globe.gl` menggambar garis busur 3D (`TubeGeometry`) menghubungkan koordinat IP penyerang dengan lokasi server SOC.
+2. Pada tag `<GlobeComponent />`, properti `arcEndLat` dan `arcEndLng` diset menggunakan string literal:
+   - `arcEndLat="SOC_CENTER.lat"`
+   - `arcEndLng="SOC_CENTER.lng"`
+3. Pustaka `react-globe.gl` mencoba mencari properti bernama `"SOC_CENTER.lat"` dan `"SOC_CENTER.lng"` pada setiap elemen objek `globeArcs`. Karena objek `globeArcs` menggunakan key `endLat` dan `endLng`, pencarian tersebut menghasilkan `undefined`.
+4. `Three.js` kemudian memproses nilai `undefined` tersebut saat membuat vertex position 3D, sehingga titik koordinat menjadi `NaN` (Not a Number) dan `computeBoundingSphere()` gagal menghitung radius numerik.
+
+### Solusi & Proses Perbaikan
+
+Perbaikan dilakukan di file `src/components/DetectionPanel.tsx`:
+
+Memperbaiki nama atribut `arcEndLat` dan `arcEndLng` agar membaca properti `endLat` dan `endLng` dari objek data:
+
+```diff
+- arcsData={globeArcs} arcStartLat="startLat" arcStartLng="startLng" arcEndLat="SOC_CENTER.lat" arcEndLng="SOC_CENTER.lng" arcColor="color"
++ arcsData={globeArcs} arcStartLat="startLat" arcStartLng="startLng" arcEndLat="endLat" arcEndLng="endLng" arcColor="color"
+```
+
+Dengan perbaikan ini, `Three.js` menerima angka koordinat valid (latitude & longitude), busur visualisasi ancaman pada Globe ter-render sempurna, dan console error bersih dari pesan `NaN`.
+
+---
+
 *Dokumentasi ini di-generate secara otomatis. Untuk pertanyaan, buka issue di repository.*
