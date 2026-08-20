@@ -8,15 +8,28 @@ import {
   RefreshCw,
   Loader2,
   ShieldAlert,
-  Activity
+  Activity,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  ExternalLink,
 } from 'lucide-react';
 
 const API = '';
 const POLL_INTERVAL = 10_000;
+const PAGE_SIZE = 7;
 
 import { authFetch } from '../utils/auth';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSidebar } from '../contexts/SidebarContext';
+import {
+  DASHBOARD_WAF_RULES,
+  RULES_BY_CATEGORY,
+  CATEGORY_ORDER,
+  CATEGORY_STYLES,
+  type DashboardWAFRule,
+} from '../lib/wafRules';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
@@ -34,6 +47,7 @@ interface ThreatRow {
   accumulatedScore: number;
   matchedRules: string[];
   decision: string;
+  detail: string;
 }
 
 interface CrowdSecStatus {
@@ -58,7 +72,7 @@ const BLOCK_BTN_STYLES: Record<string, string> = {
   Low: 'border-slate-500/30 text-slate-400 hover:bg-slate-500/10 hover:border-slate-500/50',
 };
 
-/* ─────────────────── Components ─────────────────── */
+/* ─────────────────── Sub-Components ─────────────────── */
 
 const CrowdSecStatusBadge: FC<{ status: CrowdSecStatus | null; loading: boolean }> = ({ status, loading }) => {
   const { t } = useLanguage();
@@ -109,6 +123,8 @@ const DecisionBadge: FC<{ decision: string }> = ({ decision }) => {
   }
 };
 
+/* ─────────────────── ThreatTable with Pagination ─────────────────── */
+
 const ThreatTable: FC<{
   threats: ThreatRow[];
   loading: boolean;
@@ -116,10 +132,16 @@ const ThreatTable: FC<{
   onBlock: (ip: string) => void;
   blockingIps: Set<string>;
   blockThreshold: number;
-}> = ({ threats, loading, onRefresh, onBlock, blockingIps, blockThreshold }) => {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+  onRuleClick: (ruleName: string, detail: string) => void;
+}> = ({ threats, loading, onRefresh, onBlock, blockingIps, blockThreshold, currentPage, totalPages, onPageChange, onRuleClick }) => {
   const { t } = useLanguage();
+
   return (
     <div className="bg-[#0b1120] border border-slate-800 rounded-2xl shadow-xl shadow-black/20 overflow-hidden">
+      {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between border-b border-slate-800 bg-slate-900/50">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20"><Radar size={16} /></div>
@@ -132,13 +154,15 @@ const ThreatTable: FC<{
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />{t('detection.refresh')}
         </button>
       </div>
+
+      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-800 bg-slate-900/30">
               <th className="px-4 py-3 font-semibold pl-6">{t('detection.colAttack')}</th>
               <th className="px-4 py-3 font-semibold">{t('detection.colSource')}</th>
-              <th className="px-4 py-3 font-semibold">Rules</th>
+              <th className="px-4 py-3 font-semibold">Rules <span className="normal-case text-slate-600 font-normal">(click to view)</span></th>
               <th className="px-4 py-3 font-semibold">Score</th>
               <th className="px-4 py-3 font-semibold">Acc. Score</th>
               <th className="px-4 py-3 font-semibold">Decision</th>
@@ -155,14 +179,34 @@ const ThreatTable: FC<{
               <tr key={i} className="hover:bg-slate-800/50 transition-colors">
                 <td className="px-4 py-3.5 pl-6 font-semibold text-slate-200">{row.attackType}</td>
                 <td className="px-4 py-3.5 font-mono text-xs text-slate-300">{row.sourceIp}</td>
+
+                {/* Clickable rule badges */}
                 <td className="px-4 py-3.5">
-                  <div className="flex flex-wrap gap-1 max-w-[200px]">
+                  <div className="flex flex-wrap gap-1 max-w-[220px]">
                     {(row.matchedRules || []).slice(0, 3).map((rule, idx) => (
-                      <span key={idx} className="text-[9px] font-mono bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 truncate max-w-[120px]">{rule}</span>
+                      <button
+                        key={idx}
+                        onClick={() => onRuleClick(rule, row.detail || '')}
+                        title={`Click to view rule: ${rule}`}
+                        className="text-[9px] font-mono bg-slate-800 text-indigo-300 px-1.5 py-0.5 rounded border border-slate-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 hover:text-indigo-200 truncate max-w-[120px] transition-all cursor-pointer"
+                      >
+                        {rule}
+                      </button>
                     ))}
-                    {(row.matchedRules || []).length > 3 && <span className="text-[9px] font-mono text-slate-500">+{row.matchedRules.length - 3}</span>}
+                    {(row.matchedRules || []).length > 3 && (
+                      <button
+                        onClick={() => onRuleClick(row.matchedRules[3], row.detail || '')}
+                        className="text-[9px] font-mono text-slate-500 hover:text-indigo-400 transition-colors"
+                      >
+                        +{row.matchedRules.length - 3} more
+                      </button>
+                    )}
+                    {(row.matchedRules || []).length === 0 && (
+                      <span className="text-[9px] text-slate-600 italic">—</span>
+                    )}
                   </div>
                 </td>
+
                 <td className="px-4 py-3.5"><span className={`text-xs font-bold font-mono ${row.score >= 12 ? 'text-rose-400' : row.score >= 8 ? 'text-amber-400' : 'text-slate-300'}`}>+{row.score || 0}</span></td>
                 <td className="px-4 py-3.5"><ScoreBar score={row.accumulatedScore || row.score || 0} maxScore={blockThreshold} /></td>
                 <td className="px-4 py-3.5"><DecisionBadge decision={row.decision} /></td>
@@ -178,9 +222,271 @@ const ThreatTable: FC<{
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Footer */}
+      <div className="px-6 py-3 border-t border-slate-800 bg-slate-900/30 flex items-center justify-between gap-4">
+        <p className="text-[11px] text-slate-500">
+          Page <span className="font-semibold text-slate-400">{currentPage}</span> of <span className="font-semibold text-slate-400">{totalPages}</span>
+          <span className="mx-1.5 text-slate-700">·</span>
+          <span className="text-slate-500">{threats.length} records on this page</span>
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-500 hover:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
+                p === currentPage
+                  ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20'
+                  : 'text-slate-500 hover:bg-slate-700/50 hover:text-slate-300'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-500 hover:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
+
+/* ─────────────────── WAF Rules Dictionary ─────────────────── */
+
+/**
+ * Single expandable rule row — table-style layout.
+ * Default state: green left-border (teal).
+ * Highlighted state (triggered from threat record): rose/red, auto-expanded.
+ */
+const RuleRow: FC<{
+  rule: DashboardWAFRule;
+  isHighlighted: boolean;
+  highlightedPayload: string | null;
+  ruleRef: (el: HTMLDivElement | null) => void;
+  onClearHighlight: () => void;
+}> = ({ rule, isHighlighted, highlightedPayload, ruleRef, onClearHighlight }) => {
+  // Auto-expand when highlighted from outside, otherwise user controls it
+  const [expanded, setExpanded] = useState(false);
+  const catStyles = CATEGORY_STYLES[rule.category];
+
+  useEffect(() => {
+    if (isHighlighted) setExpanded(true);
+  }, [isHighlighted]);
+
+  return (
+    <div
+      ref={ruleRef}
+      className="border-l-2 border-l-emerald-500/50 hover:border-l-emerald-400 transition-all duration-500"
+    >
+      {/* ── Row header (always visible) ── */}
+      <button
+        onClick={() => {
+          setExpanded((v) => {
+            const next = !v;
+            // Clear highlight if they collapse the row manually
+            if (!next && isHighlighted) onClearHighlight();
+            return next;
+          });
+        }}
+        className="w-full flex items-center gap-4 px-5 py-3 hover:bg-slate-800/30 transition-colors text-left"
+      >
+        {/* Severity badge */}
+        <span
+          className={`shrink-0 w-20 text-[10px] font-bold uppercase px-2 py-0.5 rounded border text-center ${catStyles.badge}`}
+        >
+          {rule.category}
+        </span>
+
+        {/* ID */}
+        <span className="shrink-0 w-28 font-mono text-[11px] font-semibold text-emerald-400">
+          {rule.id}
+        </span>
+
+        {/* Rule name */}
+        <span className="flex-1 text-[12px] font-semibold text-slate-200">
+          {rule.name}
+        </span>
+
+        {/* Level badge */}
+        <span className="shrink-0 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded text-emerald-500 bg-emerald-500/10">
+          L{rule.level}
+        </span>
+
+        {/* Chevron */}
+        <ChevronDown
+          size={14}
+          className={`shrink-0 transition-transform duration-200 text-slate-500 ${
+            expanded ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {/* ── Expanded panel: pattern token badges + meta ── */}
+      {expanded && (
+        <div className="px-5 pb-4 pt-1 border-t border-slate-800/60 bg-slate-900/20">
+          {/* Description */}
+          <p className="text-[10px] text-slate-500 mb-3 leading-relaxed">{rule.description}</p>
+
+          {/* Pattern token badges — red if it matches the payload */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {(() => {
+              const matchedIndices = new Set<number>();
+              if (isHighlighted) {
+                if (highlightedPayload) {
+                  rule.patternTokens.forEach((token, idx) => {
+                    if (rule.id === 'UA_001' && (highlightedPayload === '' || highlightedPayload === 'unknown' || highlightedPayload.toLowerCase().includes('unknown'))) {
+                      matchedIndices.add(idx);
+                    } else if (token !== '[Empty String]' && token !== '[No User-Agent]') {
+                      if (highlightedPayload.toLowerCase().includes(token.toLowerCase())) {
+                        matchedIndices.add(idx);
+                      }
+                    }
+                  });
+                }
+                // Fallback: If no token explicitly matched (or payload was empty), highlight the first one so the user sees something.
+                if (matchedIndices.size === 0 && rule.patternTokens.length > 0) {
+                  matchedIndices.add(0);
+                }
+              }
+
+              return rule.patternTokens.map((token, idx) => {
+                const matched = matchedIndices.has(idx);
+                return (
+                  <span
+                    key={token}
+                    className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded border transition-colors ${
+                      matched
+                        ? 'bg-rose-500/15 text-rose-400 border-rose-500/30 ring-1 ring-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.3)] scale-[1.02]'
+                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 opacity-75'
+                    }`}
+                  >
+                    {token}
+                  </span>
+                );
+              });
+            })()}
+          </div>
+
+          {/* Targets + OWASP row */}
+          <div className="flex flex-wrap items-center gap-3 text-[9px]">
+            <div className="flex items-center gap-1">
+              <span className="text-slate-600 uppercase font-bold tracking-wider">Targets:</span>
+              {rule.targets.map((t) => (
+                <span key={t} className="font-mono text-slate-500 bg-slate-800/70 px-1.5 py-0.5 rounded border border-slate-700/60">
+                  {t}
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              <ExternalLink size={8} className="text-slate-600" />
+              <span className="text-slate-600">{rule.owasp}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RulesDictionary: FC<{
+  highlightedRuleId: string | null;
+  highlightedPayload: string | null;
+  ruleRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
+  onClearHighlight: () => void;
+}> = ({ highlightedRuleId, highlightedPayload, ruleRefs, onClearHighlight }) => {
+  const [expanded, setExpanded] = useState(false);
+  const totalRules = DASHBOARD_WAF_RULES.length;
+
+  // Auto-expand the accordion when a rule is highlighted from outside
+  useEffect(() => {
+    if (highlightedRuleId) setExpanded(true);
+  }, [highlightedRuleId]);
+
+  return (
+    <div className="bg-[#0b1120] border border-slate-800 rounded-2xl shadow-xl shadow-black/20 overflow-hidden">
+
+      {/* ── Accordion header ── */}
+      <button
+        onClick={() => {
+          setExpanded((v) => {
+            const next = !v;
+            // Clear highlight if they collapse the entire dictionary
+            if (!next && highlightedRuleId) onClearHighlight();
+            return next;
+          });
+        }}
+        className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-800/60 bg-slate-900/40 hover:bg-slate-900/70 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-emerald-500/10">
+            <BookOpen size={15} className="text-emerald-400" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-bold text-slate-100">WAF Rules Dictionary</p>
+            <p className="text-[10px] text-slate-500 font-medium">
+              {totalRules} detection rules · click a rule badge in the table above to highlight it here
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-1.5">
+            {CATEGORY_ORDER.map((cat) => (
+              <span key={cat} className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${CATEGORY_STYLES[cat].badge}`}>
+                {RULES_BY_CATEGORY[cat].length} {cat}
+              </span>
+            ))}
+          </div>
+          <ChevronDown
+            size={16}
+            className={`text-slate-500 group-hover:text-slate-300 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </button>
+      {/* ── Expandable body ── */}
+      {expanded && (
+        <div>
+          {/* Column header row */}
+          <div className="flex items-center gap-4 px-5 py-2 border-b border-slate-800/60 bg-slate-900/30">
+            <span className="w-20 text-[10px] text-slate-500 uppercase font-bold tracking-wider">Severity</span>
+            <span className="w-28 text-[10px] text-slate-500 uppercase font-bold tracking-wider">ID</span>
+            <span className="flex-1 text-[10px] text-slate-500 uppercase font-bold tracking-wider">Rule Name</span>
+          </div>
+
+          {/* All rule rows in order: Critical → High → Medium → Low */}
+          <div className="divide-y divide-slate-800/40">
+            {CATEGORY_ORDER.flatMap((cat) =>
+              RULES_BY_CATEGORY[cat].map((rule) => (
+                <RuleRow
+                  key={rule.id}
+                  rule={rule}
+                  isHighlighted={highlightedRuleId === rule.id}
+                  highlightedPayload={highlightedPayload}
+                  ruleRef={(el) => { ruleRefs.current[rule.id] = el; }}
+                  onClearHighlight={onClearHighlight}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─────────────────── Other Sub-Components (unchanged) ─────────────────── */
 
 const ActiveResponseFeed: FC<{ threats: ThreatRow[]; blockThreshold: number }> = ({ threats, blockThreshold }) => {
   const feed = threats.filter(t => t.decision === 'BLOCK' || t.decision === 'ALERT').slice(0, 5);
@@ -277,17 +583,36 @@ const LiveThreatViz: FC<{ threats: ThreatRow[] }> = ({ threats }) => {
   );
 };
 
-/* ─────────────────── Main Component (content-only) ─────────────────── */
+/* ─────────────────── Main Component ─────────────────── */
 
 export const DetectionPanel: FC = () => {
   const { setSidebarOpen } = useSidebar();
   const { t } = useLanguage();
+
+  // Data state
   const [threats, setThreats] = useState<ThreatRow[]>([]);
   const [threatsLoading, setThreatsLoading] = useState(true);
   const [csStatus, setCsStatus] = useState<CrowdSecStatus | null>(null);
   const [csLoading, setCsLoading] = useState(true);
   const [blockingIps, setBlockingIps] = useState<Set<string>>(new Set());
   const [blockThreshold, setBlockThreshold] = useState(10);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Rule highlight state
+  const [highlightedRuleId, setHighlightedRuleId] = useState<string | null>(null);
+  const [highlightedPayload, setHighlightedPayload] = useState<string | null>(null);
+  const ruleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const rulesDictRef = useRef<HTMLDivElement>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pagination derived values
+  const totalPages = Math.max(1, Math.ceil(threats.length / PAGE_SIZE));
+  const paginatedThreats = threats.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   const fetchConfig = useCallback(async () => {
     try { const res = await authFetch(`${API}/api/admin/config`); if (res.ok) { const data = await res.json(); setBlockThreshold(data.blockThreshold || 10); } } catch {}
@@ -310,6 +635,11 @@ export const DetectionPanel: FC = () => {
     return () => clearInterval(interval);
   }, [fetchConfig, fetchThreats, fetchStatus]);
 
+  // Clamp currentPage when threats shrink
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
+
   const handleBlockIP = useCallback(async (ip: string) => {
     setBlockingIps((prev) => new Set(prev).add(ip));
     try {
@@ -320,6 +650,41 @@ export const DetectionPanel: FC = () => {
     }
   }, [fetchThreats]);
 
+  /**
+   * Called when user clicks a rule badge in ThreatTable.
+   * Finds the matching WAF rule by name, highlights it, and scrolls to it.
+   */
+  const handleRuleClick = useCallback((ruleName: string, detail: string) => {
+    // Find rule by exact name match, then fallback to partial
+    const rule =
+      DASHBOARD_WAF_RULES.find(r => r.name === ruleName) ||
+      DASHBOARD_WAF_RULES.find(r => ruleName.toLowerCase().includes(r.name.toLowerCase())) ||
+      DASHBOARD_WAF_RULES.find(r => r.name.toLowerCase().includes(ruleName.toLowerCase()));
+
+    if (!rule) {
+      // Still scroll to dictionary even if no match found
+      rulesDictRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    // Clear any existing highlight timer
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+
+    setHighlightedRuleId(rule.id);
+    setHighlightedPayload(detail);
+
+    // Scroll to dictionary section first, then to the specific rule card
+    rulesDictRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Small delay to allow accordion to open before scrolling to card
+    setTimeout(() => {
+      const ruleEl = ruleRefs.current[rule.id];
+      if (ruleEl) {
+        ruleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 350);
+  }, []);
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <header className="h-16 border-b border-slate-800 bg-[#0b1120]/80 backdrop-blur-md flex items-center px-4 lg:px-6 gap-4 shrink-0 sticky top-0 z-30">
@@ -328,8 +693,36 @@ export const DetectionPanel: FC = () => {
         <h1 className="text-lg font-bold text-slate-100 tracking-tight">{t('detection.title')}</h1>
         <div className="ml-auto"><CrowdSecStatusBadge status={csStatus} loading={csLoading} /></div>
       </header>
+
       <main className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
-        <ThreatTable threats={threats} loading={threatsLoading} onRefresh={fetchThreats} onBlock={handleBlockIP} blockingIps={blockingIps} blockThreshold={blockThreshold} />
+        {/* Threat Table with pagination */}
+        <ThreatTable
+          threats={paginatedThreats}
+          loading={threatsLoading}
+          onRefresh={fetchThreats}
+          onBlock={handleBlockIP}
+          blockingIps={blockingIps}
+          blockThreshold={blockThreshold}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          onRuleClick={handleRuleClick}
+        />
+
+        {/* WAF Rules Dictionary — accordion, default collapsed */}
+        <div ref={rulesDictRef}>
+          <RulesDictionary
+            highlightedRuleId={highlightedRuleId}
+            highlightedPayload={highlightedPayload}
+            ruleRefs={ruleRefs}
+            onClearHighlight={() => {
+              setHighlightedRuleId(null);
+              setHighlightedPayload(null);
+            }}
+          />
+        </div>
+
+        {/* Globe + Active Response Feed */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2"><LiveThreatViz threats={threats} /></div>
           <div className="lg:col-span-1"><ActiveResponseFeed threats={threats} blockThreshold={blockThreshold} /></div>

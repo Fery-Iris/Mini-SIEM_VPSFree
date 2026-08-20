@@ -10,7 +10,7 @@ export async function GET() {
   const threats = await prisma.securityLog.findMany({
     where: { adminId },
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: 50,
   });
 
   return NextResponse.json({
