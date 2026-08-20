@@ -23,9 +23,27 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     logs: logs.map(l => ({
-      ...l,
-      CreatedAt: l.createdAt.toISOString(),
-      Flag: "??" // Simplified flag mapper
+      id: l.id,
+      adminId: l.adminId,
+      userIdentity: l.userIdentity,
+      action: l.action,
+      severity: l.severity,
+      // Normalize: ipAddress = sourceIp (primary) fallback to ipAddressPublic
+      ipAddress: l.sourceIp || l.ipAddressPublic || "",
+      sourceIp: l.sourceIp || "",
+      ipAddressPublic: l.ipAddressPublic || null,
+      countryCode: l.countryCode || null,
+      country: l.country || null,
+      // userAgent is stored in the detail field (JSON or plain string)
+      userAgent: l.detail || null,
+      payload: null, // payload field removed; detail is used as userAgent
+      isBlocked: l.isBlocked,
+      createdAt: l.createdAt.toISOString(),
+      // v2.0 enrichment fields for expanded detail panel
+      matchedRules: l.matchedRules || null,   // JSON string array, e.g. '["SQLi","XSS"]'
+      decision: l.decision || null,           // LOG | ALERT | BLOCK
+      score: l.score,
+      accumulatedScore: l.accumulatedScore,
     })),
     total,
     page,
@@ -33,3 +51,4 @@ export async function GET(req: Request) {
     totalPages: Math.ceil(total / limit)
   });
 }
+

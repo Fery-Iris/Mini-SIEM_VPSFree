@@ -23,19 +23,19 @@ export async function GET() {
 
   const stats = [
     {
-      Label: "Attacks Blocked", Value: String(blockedTotal),
-      Change: "+0%", Sub: "Last 24 Hours",
-      Icon: "ShieldAlert", IconBg: "bg-red-50", IconColor: "text-red-400", ChangeBg: "bg-green-100 text-green-700",
+      label: "Attacks Blocked", value: String(blockedTotal),
+      change: "+0%", sub: "Last 24 Hours",
+      icon: "ShieldAlert", iconBg: "bg-red-500/10", iconColor: "text-red-400", changeBg: "bg-green-500/10 text-green-400",
     },
     {
-      Label: "Total Threats", Value: String(criticalTotal),
-      Change: "+0%", Sub: "Active Incidents",
-      Icon: "AlertTriangle", IconBg: "bg-amber-50", IconColor: "text-amber-400", ChangeBg: "bg-green-100 text-green-700",
+      label: "Total Threats", value: String(criticalTotal),
+      change: "+0%", sub: "Active Incidents",
+      icon: "AlertTriangle", iconBg: "bg-amber-500/10", iconColor: "text-amber-400", changeBg: "bg-green-500/10 text-green-400",
     },
     {
-      Label: "Active Sources", Value: String(sourcesTotal),
-      Change: "+0%", Sub: "Unique IP Addresses",
-      Icon: "Users", IconBg: "bg-cyan-50", IconColor: "text-cyan-500", ChangeBg: "bg-green-100 text-green-700",
+      label: "Active Sources", value: String(sourcesTotal),
+      change: "+0%", sub: "Unique IP Addresses",
+      icon: "Users", iconBg: "bg-cyan-500/10", iconColor: "text-cyan-400", changeBg: "bg-green-500/10 text-green-400",
     }
   ];
 

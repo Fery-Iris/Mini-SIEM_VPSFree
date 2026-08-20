@@ -1,12 +1,21 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Globe, RefreshCw } from 'lucide-react';
+import { Globe, Map, RefreshCw } from 'lucide-react';
 import ReactCountryFlag from 'react-country-flag';
 import { authFetch } from '@/utils/auth';
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+  ZoomableGroup,
+} from 'react-simple-maps';
 
 // Dynamic import to avoid SSR issues with react-globe.gl
 const GlobeGL = dynamic(() => import('react-globe.gl'), { ssr: false });
+
+const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
 interface ThreatPoint {
   countryCode: string;
@@ -22,9 +31,12 @@ interface GlobeData {
   totalAttacks: number;
 }
 
+type ViewMode = 'globe' | 'map';
+
 export default function ThreatGlobe() {
   const [data, setData] = useState<GlobeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>('globe');
   const globeRef = useRef<any>(null);
 
   const fetchData = useCallback(async () => {
@@ -46,7 +58,7 @@ export default function ThreatGlobe() {
 
   // Auto-rotate globe
   useEffect(() => {
-    if (globeRef.current) {
+    if (viewMode === 'globe' && globeRef.current) {
       const controls = globeRef.current.controls();
       if (controls) {
         controls.autoRotate = true;
@@ -54,7 +66,7 @@ export default function ThreatGlobe() {
         controls.enableZoom = true;
       }
     }
-  }, [data]);
+  }, [data, viewMode]);
 
   const maxCount = data?.threats?.length
     ? Math.max(...data.threats.map((t) => t.count))
@@ -84,13 +96,20 @@ export default function ThreatGlobe() {
 
   const topThreats = data?.threats?.slice(0, 5) || [];
 
+  // Map marker radius: proportional, min 4px max 20px
+  const markerRadius = (count: number) =>
+    Math.max(4, Math.min(20, 4 + (count / maxCount) * 16));
+
   return (
     <div className="bg-[#0b1120] border border-slate-700/50 rounded-2xl overflow-hidden shadow-xl shadow-black/20 flex flex-col">
       {/* Header */}
       <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-slate-700/40">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-red-500/10">
-            <Globe size={16} className="text-red-400" />
+            {viewMode === 'globe'
+              ? <Globe size={16} className="text-red-400" />
+              : <Map size={16} className="text-red-400" />
+            }
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-100">Threat Map</h3>
@@ -99,23 +118,55 @@ export default function ThreatGlobe() {
             </p>
           </div>
         </div>
-        <button
-          onClick={fetchData}
-          className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-500 hover:text-slate-300 transition-colors"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-        </button>
+
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex bg-slate-800/60 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('globe')}
+              title="3D Globe"
+              className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
+                viewMode === 'globe'
+                  ? 'bg-red-500/20 text-red-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              <Globe size={11} />
+              Globe
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              title="2D Flat Map"
+              className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
+                viewMode === 'map'
+                  ? 'bg-red-500/20 text-red-400 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              <Map size={11} />
+              Map
+            </button>
+          </div>
+
+          <button
+            onClick={fetchData}
+            className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* Globe + Sidebar */}
       <div className="flex flex-1 min-h-[320px]">
-        {/* Globe */}
+        {/* Visualization area */}
         <div className="flex-1 relative flex items-center justify-center" style={{ minHeight: 320 }}>
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <RefreshCw size={24} className="animate-spin text-blue-400" />
             </div>
-          ) : (
+          ) : viewMode === 'globe' ? (
+            /* ─── 3D Globe ─── */
             <GlobeGL
               ref={globeRef}
               width={360}
@@ -147,6 +198,70 @@ export default function ThreatGlobe() {
               arcDashGap={0.3}
               arcDashAnimateTime={2000}
             />
+          ) : (
+            /* ─── 2D Flat Map ─── */
+            <div className="relative w-full h-full" style={{ minHeight: 320 }}>
+              <ComposableMap
+                projectionConfig={{ scale: 130 }}
+                style={{ width: '100%', height: '100%' }}
+                height={320}
+              >
+                <ZoomableGroup zoom={1} minZoom={0.8} maxZoom={5}>
+                  <Geographies geography={GEO_URL}>
+                    {({ geographies }) =>
+                      geographies.map((geo) => (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          style={{
+                            default: { fill: '#1e293b', stroke: '#334155', strokeWidth: 0.4, outline: 'none' },
+                            hover:   { fill: '#273548', stroke: '#475569', strokeWidth: 0.4, outline: 'none' },
+                            pressed: { fill: '#1e293b', outline: 'none' },
+                          }}
+                        />
+                      ))
+                    }
+                  </Geographies>
+
+                  {/* Threat markers */}
+                  {(data?.threats || []).map((t) => {
+                    const r = markerRadius(t.count);
+                    const isCritical = t.count > maxCount * 0.7;
+                    const isHigh = t.count > maxCount * 0.3;
+                    const color = isCritical ? '#ef4444' : isHigh ? '#f59e0b' : '#3b82f6';
+                    return (
+                      <Marker key={t.countryCode} coordinates={[t.lng, t.lat]}>
+                        {/* Pulse ring */}
+                        <circle
+                          r={r + 4}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={1}
+                          strokeOpacity={0.3}
+                        />
+                        {/* Core dot */}
+                        <circle
+                          r={r}
+                          fill={color}
+                          fillOpacity={0.8}
+                          stroke={color}
+                          strokeWidth={0.5}
+                        />
+                        {/* Tooltip on hover via title */}
+                        <title>{t.country}: {t.count} threats</title>
+                      </Marker>
+                    );
+                  })}
+                </ZoomableGroup>
+              </ComposableMap>
+
+              {/* Legend */}
+              <div className="absolute bottom-3 left-3 flex items-center gap-3 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                <LegendDot color="#ef4444" label="Critical" />
+                <LegendDot color="#f59e0b" label="High" />
+                <LegendDot color="#3b82f6" label="Low" />
+              </div>
+            </div>
           )}
         </div>
 
@@ -177,6 +292,16 @@ export default function ThreatGlobe() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── Legend dot helper ─── */
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+      <span className="text-[9px] text-slate-500 font-medium">{label}</span>
     </div>
   );
 }

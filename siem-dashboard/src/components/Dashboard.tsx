@@ -36,22 +36,27 @@ const API = '';
 
 /* ─────────────────────────── Types ─────────────────────────── */
 
-
 interface LogEntry {
   id: number;
-  adminId?: string;
-  userIdentity: string;
+  adminId?: string | number | null;
+  userIdentity?: string | null;
   action: string;
-  payload?: string;
-  severity: string;
+  severity?: string | null;
+  // Normalized IP field (sourceIp || ipAddressPublic from API)
   ipAddress: string;
-  countryCode?: string;
-  userAgent?: string;
+  sourceIp?: string;
+  ipAddressPublic?: string | null;
+  countryCode?: string | null;
+  country?: string | null;
+  userAgent?: string | null;
+  payload?: string | null;
   isBlocked: boolean;
   createdAt: string;
-  // Computed
-  flag?: string;
-  country?: string;
+  // v2.0 enrichment
+  matchedRules?: string | null;   // JSON array string: '["SQLi","XSS"]'
+  decision?: string | null;       // LOG | ALERT | BLOCK
+  score?: number;
+  accumulatedScore?: number;
 }
 
 interface StatCardData {
@@ -70,6 +75,55 @@ const ICON_MAP: Record<string, FC<{ size?: number; className?: string }>> = {
   AlertTriangle,
   Users,
 };
+
+/* ─────────── Attack Type Parser ─────────── */
+
+function parseAttackTypes(matchedRules?: string | null, action?: string): string[] {
+  if (matchedRules) {
+    try {
+      const arr = JSON.parse(matchedRules);
+      if (Array.isArray(arr) && arr.length > 0) return arr;
+    } catch {
+      // fallthrough
+    }
+  }
+  // Fallback: derive from action
+  if (!action) return [];
+  const lower = action.toLowerCase();
+  if (lower.includes('sql')) return ['SQLi'];
+  if (lower.includes('xss')) return ['XSS'];
+  if (lower.includes('lfi') || lower.includes('rfi') || lower.includes('traversal')) return ['Path Traversal'];
+  if (lower.includes('bot') || lower.includes('scanner')) return ['Bot/Scanner'];
+  if (lower.includes('brute') || lower.includes('auth')) return ['Brute Force'];
+  if (lower.includes('crowdsec')) return ['CrowdSec Alert'];
+  if (lower.includes('block') || lower.includes('waf')) return ['WAF Block'];
+  return [action];
+}
+
+function shortAttackLabel(label: string): string {
+  return label
+    .replace('SQL Injection (SQLi)', 'SQLi')
+    .replace('SQL Injection', 'SQLi')
+    .replace('Cross-Site Scripting (XSS)', 'XSS')
+    .replace('Path Traversal (LFI/RFI)', 'LFI/RFI')
+    .replace('OS Command Injection', 'CMDi')
+    .replace('Malicious Bot / Scanner', 'Bot')
+    .replace('Server-Side Request Forgery (SSRF)', 'SSRF')
+    .replace('XML External Entity (XXE)', 'XXE')
+    .replace('JNDI / Log4Shell Injection', 'Log4Shell')
+    .replace('NoSQL Injection', 'NoSQLi')
+    .replace('Code Injection', 'Code Inj.')
+    .replace('WAF_BLOCK', 'WAF Block')
+    .replace('RATE_LIMIT_EXCEEDED', 'Rate Limit')
+    .replace('crowdsec-detection', 'CrowdSec');
+}
+
+const ATTACK_BADGE_COLORS = [
+  'bg-red-500/15 text-red-400 border-red-500/25',
+  'bg-amber-500/15 text-amber-400 border-amber-500/25',
+  'bg-purple-500/15 text-purple-400 border-purple-500/25',
+  'bg-pink-500/15 text-pink-400 border-pink-500/25',
+];
 
 /* ─────────────────── StatCard Component ─────────────────── */
 
@@ -108,6 +162,117 @@ const StatCard: FC<StatCardData> = ({ label, value, change, sub, icon, iconBg, i
   );
 };
 
+/* ──────────────── Expanded Row Detail Panel ──────────────── */
+
+function DetailField({ label, value, mono = false, full = false, badge = false, badgeColor = '' }: {
+  label: string;
+  value?: string | null;
+  mono?: boolean;
+  full?: boolean;
+  badge?: boolean;
+  badgeColor?: string;
+}) {
+  if (!value) return (
+    <div className={full ? 'col-span-2' : ''}>
+      <p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider mb-0.5">{label}</p>
+      <p className="text-xs text-slate-600 italic">—</p>
+    </div>
+  );
+  return (
+    <div className={full ? 'col-span-2' : ''}>
+      <p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider mb-0.5">{label}</p>
+      {badge ? (
+        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${badgeColor}`}>{value}</span>
+      ) : (
+        <p className={`text-xs break-all ${mono ? 'font-mono text-slate-300' : 'text-slate-400'}`}>{value}</p>
+      )}
+    </div>
+  );
+}
+
+function ExpandedDetail({ log }: { log: LogEntry }) {
+  const attackTypes = parseAttackTypes(log.matchedRules, log.action);
+
+  const severityBadgeColor =
+    log.severity === 'Critical' ? 'bg-red-500/15 text-red-400 border-red-500/25' :
+    log.severity === 'High'     ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' :
+    log.severity === 'Medium'   ? 'bg-blue-500/15 text-blue-400 border-blue-500/25' :
+                                  'bg-cyan-500/15 text-cyan-400 border-cyan-500/25';
+
+  const decisionBadgeColor =
+    log.decision === 'BLOCK'  ? 'bg-red-500/15 text-red-400 border-red-500/25' :
+    log.decision === 'ALERT'  ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' :
+                                'bg-slate-500/15 text-slate-400 border-slate-500/25';
+
+  return (
+    <div className="px-6 pb-5 pt-3 bg-slate-800/20 border-t border-slate-700/30 w-full">
+      <div className="grid grid-cols-2 gap-x-8 gap-y-3 max-w-3xl">
+        {/* Row 1 */}
+        <DetailField
+          label="User / Admin ID"
+          value={log.userIdentity || (log.adminId != null ? String(log.adminId) : null)}
+        />
+        <DetailField
+          label="Event Time"
+          value={log.createdAt}
+          mono
+        />
+
+        {/* Row 2 */}
+        <DetailField
+          label="Rule"
+          value={log.action}
+        />
+        <div>
+          <p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider mb-0.5">Attack Type</p>
+          {attackTypes.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {attackTypes.map((t, i) => (
+                <span
+                  key={i}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${ATTACK_BADGE_COLORS[i % ATTACK_BADGE_COLORS.length]}`}
+                >
+                  {shortAttackLabel(t)}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-600 italic">—</p>
+          )}
+        </div>
+
+        {/* Row 3 */}
+        <DetailField
+          label="Severity"
+          value={log.severity}
+          badge
+          badgeColor={severityBadgeColor}
+        />
+        <DetailField
+          label="Decision"
+          value={log.decision}
+          badge
+          badgeColor={decisionBadgeColor}
+        />
+
+        {/* Full width rows */}
+        <DetailField
+          label="User Agent"
+          value={log.userAgent}
+          mono
+          full
+        />
+        <DetailField
+          label="IP Address"
+          value={maskIP(log.ipAddress)}
+          mono
+          full
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ──────────────── Activity Logs Table ──────────────── */
 
 const ActivityTable: FC = () => {
@@ -138,7 +303,6 @@ const ActivityTable: FC = () => {
   }, []);
 
   useEffect(() => { fetchLogs(1); }, [fetchLogs]);
-
 
   const toggleRow = (id: number) => {
     setExpandedRows((prev) => {
@@ -196,34 +360,34 @@ const ActivityTable: FC = () => {
           </div>
         ) : (
           <div className="w-full text-sm">
-            {/* Header */}
-            <div className="grid grid-cols-[50px_160px_100px_minmax(180px,1fr)_180px_200px_40px] text-left text-[11px] text-slate-500 uppercase tracking-wider border-t border-b border-slate-700/40 bg-slate-800/30 font-semibold items-center">
-              <div className="px-4 py-2.5">#</div>
-              <div className="px-4 py-2.5">{t('dashboard.colCreatedAt')}</div>
-              <div className="px-4 py-2.5">{t('dashboard.colSeverity')}</div>
-              <div className="px-4 py-2.5">{t('dashboard.colIp')}</div>
-              <div className="px-4 py-2.5">{t('dashboard.colAction')}</div>
-              <div className="px-4 py-2.5">{t('dashboard.colUser')}</div>
-              <div className="px-3 py-2.5"></div>
+            {/* Header — 8 cols: # | Time | Severity | IP | Attack Type | Action | User | chevron */}
+            <div className="grid grid-cols-[44px_150px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_160px_36px] text-left text-[11px] text-slate-500 uppercase tracking-wider border-t border-b border-slate-700/40 bg-slate-800/30 font-semibold items-center">
+              <div className="px-3 py-2.5">#</div>
+              <div className="px-3 py-2.5">{t('dashboard.colCreatedAt')}</div>
+              <div className="px-3 py-2.5">{t('dashboard.colSeverity')}</div>
+              <div className="px-3 py-2.5">{t('dashboard.colIp')}</div>
+              <div className="px-3 py-2.5">Attack Type</div>
+              <div className="px-3 py-2.5">{t('dashboard.colAction')}</div>
+              <div className="px-3 py-2.5">{t('dashboard.colUser')}</div>
+              <div className="px-2 py-2.5"></div>
             </div>
+
             <div className="divide-y divide-slate-800/50">
               {filteredLogs.map((log) => {
                 const isExpanded = expandedRows.has(log.id);
-                const hasDetail = log.userAgent || log.payload;
+                const attackTypes = parseAttackTypes(log.matchedRules, log.action);
                 return (
                   <div key={`${log.id}-${log.createdAt}`} className="group relative">
-                    {/* Main row */}
+                    {/* Main row — always clickable for expanded detail */}
                     <div
-                      className={`grid grid-cols-[50px_160px_100px_minmax(180px,1fr)_180px_200px_40px] items-center w-full hover:bg-slate-800/40 transition-colors ${
-                        hasDetail ? 'cursor-pointer' : ''
-                      }`}
-                      onClick={() => hasDetail && toggleRow(log.id)}
+                      className="grid grid-cols-[44px_150px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_160px_36px] items-center w-full hover:bg-slate-800/40 transition-colors cursor-pointer"
+                      onClick={() => toggleRow(log.id)}
                     >
-                      <div className="px-4 py-3 text-xs text-slate-600 font-mono">{log.id}</div>
-                      <div className="px-4 py-3 text-xs text-slate-500 font-mono whitespace-nowrap">
+                      <div className="px-3 py-3 text-xs text-slate-600 font-mono">{log.id}</div>
+                      <div className="px-3 py-3 text-xs text-slate-500 font-mono whitespace-nowrap">
                         {log.createdAt}
                       </div>
-                      <div className="px-4 py-3">
+                      <div className="px-3 py-3">
                         <span
                           className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-md ${
                             log.severity === 'Critical'
@@ -238,70 +402,76 @@ const ActivityTable: FC = () => {
                           {t(`severity.${(log.severity || 'Low').toLowerCase()}`)}
                         </span>
                       </div>
-                      <div className="px-4 py-3 text-xs font-mono whitespace-nowrap flex items-center gap-2">
-                        {/* Flag + IP */}
+
+                      {/* IP + Flag */}
+                      <div className="px-3 py-3 text-xs font-mono whitespace-nowrap flex items-center gap-2">
                         {log.countryCode && log.countryCode !== 'LO' && log.countryCode !== '?' ? (
-                          <ReactCountryFlag 
-                            countryCode={log.countryCode} 
-                            svg 
+                          <ReactCountryFlag
+                            countryCode={log.countryCode}
+                            svg
                             className="text-lg rounded-sm shadow-sm"
-                            title={log.country}
+                            title={log.country ?? undefined}
                           />
                         ) : (
                           <span className="text-slate-500" title="Local/Unknown">🌐</span>
                         )}
                         <span className="text-cyan-400">{maskIP(log.ipAddress)}</span>
                       </div>
-                      <div className="px-4 py-3 text-xs font-semibold text-slate-300 whitespace-nowrap">
+
+                      {/* Attack Type badges */}
+                      <div className="px-3 py-3">
+                        {attackTypes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {attackTypes.slice(0, 2).map((at, i) => (
+                              <span
+                                key={i}
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${ATTACK_BADGE_COLORS[i % ATTACK_BADGE_COLORS.length]}`}
+                              >
+                                {shortAttackLabel(at)}
+                              </span>
+                            ))}
+                            {attackTypes.length > 2 && (
+                              <span className="text-[10px] text-slate-500">+{attackTypes.length - 2}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-600">—</span>
+                        )}
+                      </div>
+
+                      {/* Action / Rule */}
+                      <div className="px-3 py-3 text-xs font-semibold text-slate-300 whitespace-nowrap">
                         <span className="font-bold">
                           {log.action.toLowerCase() === 'crowdsec-detection' ? t('attackType.crowdsecDetection') : log.action}
                         </span>
                         {log.isBlocked && (
-                          <div className="mt-1 inline-block">
+                          <div className="mt-1 inline-block ml-2">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-red-500/10 text-red-400 border-red-500/20">
                               BLOCKED
                             </span>
                           </div>
                         )}
                       </div>
-                      <div className="px-4 py-3 text-xs text-slate-500 min-w-0">
-                        <div className="truncate" title={log.userIdentity}>{log.userIdentity}</div>
-                        {log.adminId && (
-                          <div className="text-[10px] text-slate-600 font-mono mt-0.5">{log.adminId}</div>
+
+                      {/* User */}
+                      <div className="px-3 py-3 text-xs text-slate-500 min-w-0">
+                        <div className="truncate" title={log.userIdentity ?? undefined}>{log.userIdentity}</div>
+                        {log.adminId != null && (
+                          <div className="text-[10px] text-slate-600 font-mono mt-0.5">ID: {log.adminId}</div>
                         )}
                       </div>
-                      <div className="px-3 py-3 flex justify-end text-slate-600 group-hover:text-slate-400">
-                        {hasDetail && (
-                          <ChevronRight
-                            size={14}
-                            className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                          />
-                        )}
+
+                      {/* Chevron */}
+                      <div className="px-2 py-3 flex justify-end text-slate-600 group-hover:text-slate-400">
+                        <ChevronRight
+                          size={14}
+                          className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        />
                       </div>
                     </div>
 
                     {/* Expanded detail */}
-                    {isExpanded && (
-                      <div className="px-6 pb-4 pt-2 bg-slate-800/30 border-t border-slate-700/30 w-full overflow-hidden">
-                        <div className="pl-6 space-y-3 w-full">
-                          {log.userAgent && (
-                            <p className="text-xs text-slate-500">
-                              <span className="text-[10px] text-slate-600 uppercase font-bold tracking-wider mr-2">User-Agent</span>
-                              <br />
-                              <span className="font-mono text-slate-400 break-all">{log.userAgent}</span>
-                            </p>
-                          )}
-                          {log.payload && (
-                            <div className="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 overflow-hidden w-full max-w-full">
-                              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1 block">Payload</span>
-                              <code className="text-xs font-mono text-amber-400 break-all whitespace-pre-wrap block max-w-full">
-                                {log.payload}
-                              </code>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    {isExpanded && <ExpandedDetail log={log} />}
                   </div>
                 );
               })}
@@ -421,4 +591,3 @@ export const Dashboard: FC = () => {
     </div>
   );
 };
-
