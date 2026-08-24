@@ -48,6 +48,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Invalid credentials" }, { status: 401 });
     }
 
+    // Google OAuth users have no password — redirect them to Google Sign-In
+    if (!admin.password) {
+      return NextResponse.json({
+        success: false,
+        message: "This account uses Google Sign-In. Please click 'Continue with Google' to log in.",
+      }, { status: 401 });
+    }
+
     const isMatch = await bcrypt.compare(password, admin.password);
 
     if (!isMatch) {

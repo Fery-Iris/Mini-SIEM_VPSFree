@@ -16,7 +16,8 @@ model Organization {
 model Admin {
   id                Int         @id @default(autoincrement())
   email             String      @unique
-  password          String
+  password          String?     // nullable — Google OAuth users have no password
+  googleId          String?     @unique // Google sub ID for OAuth lookup
   organizationId    Int?
   organization      Organization? @relation(fields: [organizationId], references: [id])
   isVerified        Boolean     @default(false)

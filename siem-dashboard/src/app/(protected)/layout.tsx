@@ -1,8 +1,9 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext';
+import { GoogleAuthHandler } from '@/components/GoogleAuthHandler';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -44,6 +45,10 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
+      {/* Handle Google OAuth redirect: picks up ?token= params and stores to localStorage */}
+      <Suspense fallback={null}>
+        <GoogleAuthHandler />
+      </Suspense>
       <AuthGuard>
         <LayoutInner>{children}</LayoutInner>
       </AuthGuard>
