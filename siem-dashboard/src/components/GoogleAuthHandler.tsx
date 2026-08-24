@@ -1,38 +1,59 @@
 'use client';
 import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 /**
  * GoogleAuthHandler
  *
- * After Google OAuth callback, the server redirects to /dashboard?token=...&adminId=...&email=...
- * This client component picks up those query params, stores them in localStorage
- * (matching the same keys used by email/password login), then cleans the URL.
+ * After Google OAuth callback, the server sets a short-lived cookie "__mg_oauth"
+ * containing { token, adminId, email, orgId, orgName } and redirects to /dashboard
+ * with a CLEAN URL (no query params — avoids token leakage via browser history & logs).
+ *
+ * This component reads that one-time cookie, moves the data to localStorage
+ * (matching the same keys used by email/password login), then immediately
+ * deletes the cookie so it cannot be reused.
  */
 export function GoogleAuthHandler() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    if (!token) return;
+    const cookieName = '__mg_oauth';
 
-    // Store exactly the same keys as the email/password login flow
-    localStorage.setItem('token', token);
+    // Read all cookies and find __mg_oauth
+    const cookie = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${cookieName}=`));
 
-    const adminId = searchParams.get('adminId');
-    const email = searchParams.get('email');
-    const orgId = searchParams.get('orgId');
-    const orgName = searchParams.get('orgName');
+    if (!cookie) return; // Not a Google OAuth redirect — nothing to do
 
-    if (adminId) localStorage.setItem('adminId', adminId);
-    if (email) localStorage.setItem('userEmail', email);
-    if (orgId) localStorage.setItem('orgId', orgId);
-    if (orgName) localStorage.setItem('orgName', orgName);
+    try {
+      const raw = cookie.split('=').slice(1).join('='); // handle '=' inside JSON
+      const payload = JSON.parse(decodeURIComponent(raw)) as {
+        token: string;
+        adminId: number;
+        email: string;
+        orgId: number;
+        orgName: string;
+      };
 
-    // Remove query params from the URL (clean it up)
-    router.replace('/dashboard');
-  }, [searchParams, router]);
+      // Store to localStorage — same keys as email/password login
+      localStorage.setItem('token', payload.token);
+      localStorage.setItem('adminId', String(payload.adminId));
+      localStorage.setItem('userEmail', payload.email);
+      localStorage.setItem('orgId', String(payload.orgId));
+      localStorage.setItem('orgName', payload.orgName);
+
+      // Delete the cookie immediately (set maxAge=0)
+      document.cookie = `${cookieName}=; Max-Age=0; path=/`;
+
+      // Force a clean re-render so AuthGuard sees the token
+      router.replace('/dashboard');
+    } catch (err) {
+      console.error('Failed to parse Google OAuth cookie:', err);
+      // If anything goes wrong, clear the bad cookie and send to login
+      document.cookie = `${cookieName}=; Max-Age=0; path=/`;
+    }
+  }, [router]);
 
   return null;
 }

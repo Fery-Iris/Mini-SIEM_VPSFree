@@ -10,7 +10,7 @@ interface GoogleTokenResponse {
 }
 
 interface GoogleUserInfo {
-  sub: string;         // Google unique user ID
+  sub: string;
   email: string;
   email_verified: boolean;
   name: string;
@@ -25,7 +25,6 @@ export async function GET(req: Request) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const jwtSecret = process.env.JWT_SECRET || "xr-security-change-me-in-production";
 
-  // ── Error helper redirect ──────────────────────────────────────────────────
   const errorRedirect = (msg: string) =>
     NextResponse.redirect(`${baseUrl}/login?error=${encodeURIComponent(msg)}`);
 
@@ -37,14 +36,8 @@ export async function GET(req: Request) {
   const code = searchParams.get("code");
   const errorParam = searchParams.get("error");
 
-  // User cancelled the consent screen
-  if (errorParam) {
-    return NextResponse.redirect(`${baseUrl}/login`);
-  }
-
-  if (!code) {
-    return errorRedirect("Missing authorization code from Google.");
-  }
+  if (errorParam) return NextResponse.redirect(`${baseUrl}/login`);
+  if (!code) return errorRedirect("Missing authorization code from Google.");
 
   // ── 1. Exchange code for tokens ──────────────────────────────────────────
   let tokens: GoogleTokenResponse;
@@ -61,10 +54,8 @@ export async function GET(req: Request) {
         grant_type: "authorization_code",
       }),
     });
-
     if (!tokenRes.ok) {
-      const err = await tokenRes.text();
-      console.error("Google token exchange failed:", err);
+      console.error("Google token exchange failed:", await tokenRes.text());
       return errorRedirect("Failed to exchange Google authorization code.");
     }
     tokens = await tokenRes.json();
@@ -79,9 +70,7 @@ export async function GET(req: Request) {
     const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
-    if (!userInfoRes.ok) {
-      return errorRedirect("Failed to fetch user info from Google.");
-    }
+    if (!userInfoRes.ok) return errorRedirect("Failed to fetch user info from Google.");
     googleUser = await userInfoRes.json();
   } catch (err) {
     console.error("Userinfo fetch error:", err);
@@ -93,28 +82,25 @@ export async function GET(req: Request) {
   }
 
   // ── 3. Find or create user in DB ─────────────────────────────────────────
-  // Strategy: try googleId first (if column exists), then fall back to email.
-  // This makes the handler work even if the DB migration hasn't run yet.
   let adminId: number;
   let adminEmail: string;
   let adminOrgId: number | null;
   let adminOrgName: string;
 
   try {
-    // Try to find by googleId first, fallback to email
     let existingAdmin = null;
 
+    // Try googleId lookup first (gracefully skip if column doesn't exist yet)
     try {
       existingAdmin = await prisma.admin.findFirst({
         where: { googleId: googleUser.sub },
         include: { organization: true },
       });
     } catch {
-      // googleId column might not exist yet — ignore and fall through to email lookup
       console.warn("googleId column not found, falling back to email lookup");
     }
 
-    // If not found by googleId, look up by email
+    // Fallback: find by email
     if (!existingAdmin) {
       existingAdmin = await prisma.admin.findUnique({
         where: { email: googleUser.email },
@@ -123,17 +109,13 @@ export async function GET(req: Request) {
     }
 
     if (!existingAdmin) {
-      // ── New user: create org + admin ──────────────────────────────────────
+      // New user — create org + admin
       const orgName = googleUser.name
         ? `${googleUser.name}'s Organization`
         : "My Organization";
 
       const result = await prisma.$transaction(async (tx) => {
-        const org = await tx.organization.create({
-          data: { name: orgName },
-        });
-
-        // Build admin data — try to include googleId, but don't fail if column missing
+        const org = await tx.organization.create({ data: { name: orgName } });
         const adminData: {
           email: string;
           password: null;
@@ -145,14 +127,8 @@ export async function GET(req: Request) {
           password: null,
           organizationId: org.id,
           isVerified: true,
+          googleId: googleUser.sub,
         };
-
-        try {
-          adminData.googleId = googleUser.sub;
-        } catch {
-          // ignore if field not supported yet
-        }
-
         const newAdmin = await tx.admin.create({ data: adminData });
         return { org, admin: newAdmin };
       });
@@ -162,7 +138,7 @@ export async function GET(req: Request) {
       adminOrgId = result.org.id;
       adminOrgName = result.org.name;
     } else {
-      // ── Existing user: link Google account if not linked ──────────────────
+      // Existing user — link Google account if not linked
       if (!existingAdmin.googleId) {
         try {
           await prisma.admin.update({
@@ -170,11 +146,9 @@ export async function GET(req: Request) {
             data: { googleId: googleUser.sub, isVerified: true },
           });
         } catch {
-          // Column might not exist yet — just proceed with login
           console.warn("Could not update googleId — column may not exist yet");
         }
       }
-
       adminId = existingAdmin.id;
       adminEmail = existingAdmin.email;
       adminOrgId = existingAdmin.organizationId;
@@ -188,14 +162,30 @@ export async function GET(req: Request) {
   // ── 4. Issue JWT ──────────────────────────────────────────────────────────
   const token = jwt.sign({ adminId }, jwtSecret, { expiresIn: "24h" });
 
-  // ── 5. Redirect to dashboard ──────────────────────────────────────────────
-  // GoogleAuthHandler (client component) picks up these params and stores in localStorage.
-  const dashboardUrl = new URL(`${baseUrl}/dashboard`);
-  dashboardUrl.searchParams.set("token", token);
-  dashboardUrl.searchParams.set("adminId", String(adminId));
-  dashboardUrl.searchParams.set("email", adminEmail);
-  dashboardUrl.searchParams.set("orgId", String(adminOrgId ?? 0));
-  dashboardUrl.searchParams.set("orgName", adminOrgName);
+  // ── 5. Set a short-lived cookie and redirect to /dashboard (clean URL) ────
+  //
+  // SECURITY: Token is NOT passed via URL query params (avoids browser history,
+  // server logs, and Referrer header leakage). Instead we use a server-set cookie
+  // that the client reads once and moves to localStorage, then the cookie is deleted.
+  //
+  const authPayload = JSON.stringify({
+    token,
+    adminId,
+    email: adminEmail,
+    orgId: adminOrgId ?? 0,
+    orgName: adminOrgName,
+  });
 
-  return NextResponse.redirect(dashboardUrl.toString());
+  const isProduction = baseUrl.startsWith("https");
+
+  const response = NextResponse.redirect(`${baseUrl}/dashboard`);
+  response.cookies.set("__mg_oauth", authPayload, {
+    httpOnly: false,    // Must be false so client JS can read it
+    secure: isProduction,
+    sameSite: "lax",
+    maxAge: 60,         // 60 seconds — one-time use, very short-lived
+    path: "/",
+  });
+
+  return response;
 }
