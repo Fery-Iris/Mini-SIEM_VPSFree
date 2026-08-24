@@ -19,7 +19,7 @@ export const Footer: FC = () => {
             <div className="flex items-center gap-2.5 mb-4">
               <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-8 w-auto" />
               <span className="text-lg font-bold text-white tracking-tight">
-                XR Security
+                MicroGaze
               </span>
             </div>
             <p className="text-sm leading-relaxed text-slate-500 max-w-xs">

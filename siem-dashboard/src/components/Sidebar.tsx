@@ -69,7 +69,7 @@ export const Sidebar: FC<SidebarProps> = ({ open, onClose, onLogout }) => {
         <div className="h-16 flex items-center gap-3 px-6 shrink-0 border-b border-slate-800/50">
           <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-8 w-auto" />
           <span className="text-lg font-bold text-slate-100 tracking-tight whitespace-nowrap">
-            XR Security
+            MicroGaze
           </span>
           <div className="ml-auto flex items-center gap-2">
             <LanguageToggle variant="dark" />

@@ -96,7 +96,7 @@ export const Login: FC<LoginProps> = ({ onLogin }) => {
         <div className="absolute top-8 left-8 lg:top-12 lg:left-12 z-20 flex items-center gap-2">
           <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-10 w-auto" />
           <span className="text-xl font-bold text-white tracking-tight drop-shadow-md">
-            XR Security
+            MicroGaze
           </span>
         </div>
 
@@ -142,7 +142,7 @@ export const Login: FC<LoginProps> = ({ onLogin }) => {
 
           <div className="relative z-10">
             <h2 className="text-[28px] lg:text-[32px] font-bold text-slate-800 tracking-tight mb-8">
-              Login to XR Security
+              Login to MicroGaze
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">

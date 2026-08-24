@@ -24,6 +24,12 @@ import { authFetch } from '../utils/auth';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSidebar } from '../contexts/SidebarContext';
 import {
+  useToast,
+  useConfirm,
+  ToastContainer,
+  ConfirmModal,
+} from './ui/Toast';
+import {
   DASHBOARD_WAF_RULES,
   RULES_BY_CATEGORY,
   CATEGORY_ORDER,
@@ -607,6 +613,10 @@ export const DetectionPanel: FC = () => {
   const rulesDictRef = useRef<HTMLDivElement>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Toast + Confirm
+  const { toasts, success, error, dismiss } = useToast();
+  const { confirmState, confirm, closeConfirm } = useConfirm();
+
   // Pagination derived values
   const totalPages = Math.max(1, Math.ceil(threats.length / PAGE_SIZE));
   const paginatedThreats = threats.slice(
@@ -641,14 +651,38 @@ export const DetectionPanel: FC = () => {
   }, [totalPages, currentPage]);
 
   const handleBlockIP = useCallback(async (ip: string) => {
+    // Step 1: confirmation modal
+    const confirmed = await confirm({
+      title: 'Blokir IP Address',
+      message: 'IP berikut akan diblokir melalui Cloudflare WAF dan tidak dapat mengakses sistem. Tindakan ini dapat dicabut dari halaman Blocked IPs.',
+      ip,
+      variant: 'danger',
+      confirmLabel: 'Ya, Blokir Sekarang',
+      cancelLabel: 'Batal',
+    });
+    if (!confirmed) return;
+
+    // Step 2: execute block
     setBlockingIps((prev) => new Set(prev).add(ip));
     try {
-      const res = await authFetch(`${API}/api/detection/block`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip }) });
-      if (res.ok) fetchThreats();
-    } catch (err) { console.error('Failed to block IP:', err); } finally {
+      const res = await authFetch(`${API}/api/detection/block`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip }),
+      });
+      if (res.ok) {
+        fetchThreats();
+        success(`IP ${ip} berhasil diblokir via Cloudflare WAF.`);
+      } else {
+        error(`Gagal memblokir IP ${ip}. Coba lagi.`);
+      }
+    } catch (err) {
+      console.error('Failed to block IP:', err);
+      error(`Gagal memblokir IP ${ip}. Periksa koneksi.`);
+    } finally {
       setBlockingIps((prev) => { const next = new Set(prev); next.delete(ip); return next; });
     }
-  }, [fetchThreats]);
+  }, [confirm, fetchThreats, success, error]);
 
   /**
    * Called when user clicks a rule badge in ThreatTable.
@@ -728,6 +762,10 @@ export const DetectionPanel: FC = () => {
           <div className="lg:col-span-1"><ActiveResponseFeed threats={threats} blockThreshold={blockThreshold} /></div>
         </div>
       </main>
+
+      {/* Confirm modal + toast notifications */}
+      <ConfirmModal state={confirmState} onClose={closeConfirm} />
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 };

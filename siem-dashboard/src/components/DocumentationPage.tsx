@@ -223,7 +223,7 @@ export const DocumentationPage = () => {
             <button onClick={() => router.push('/')} className="flex items-center gap-2 group cursor-pointer">
               <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-8 w-auto" />
               <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-900 tracking-tight">
-                XR Security
+                MicroGaze
               </span>
             </button>
             <LanguageToggle />

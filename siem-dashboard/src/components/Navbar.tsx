@@ -22,7 +22,7 @@ export const Navbar: FC<NavbarProps> = ({ onGetDemo }) => {
         <div className="flex items-center gap-2">
           <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-10 w-auto" />
           <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-900 tracking-tight">
-            XR Security
+            MicroGaze
           </span>
           <LanguageToggle />
         </div>

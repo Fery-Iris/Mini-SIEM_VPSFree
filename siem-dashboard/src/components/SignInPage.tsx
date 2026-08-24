@@ -160,7 +160,7 @@ const SignInPage: FC<SignInPageProps> = ({ onAuthSuccess }) => {
 
         <div className="absolute top-8 left-8 lg:top-12 lg:left-12 z-20 flex items-center gap-2">
           <img src="/logo-siem.png" alt="Mini-SIEM Logo" className="h-10 w-auto" />
-          <span className="text-xl font-bold text-white tracking-tight drop-shadow-md">XR Security</span>
+          <span className="text-xl font-bold text-white tracking-tight drop-shadow-md">MicroGaze</span>
         </div>
 
         <AnimatedCircles />

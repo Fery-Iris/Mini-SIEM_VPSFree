@@ -9,6 +9,12 @@ import { authFetch } from '../utils/auth';
 import { maskIP } from '../utils/ipMask';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSidebar } from '../contexts/SidebarContext';
+import {
+  useToast,
+  useConfirm,
+  ToastContainer,
+  ConfirmModal,
+} from './ui/Toast';
 
 interface BlockedIp {
   ip: string;
@@ -86,6 +92,10 @@ export const BlockedPanel: FC = () => {
   const [loading, setLoading] = useState(true);
   const [unblockedIps, setUnblockedIps] = useState<Set<string>>(new Set());
 
+  // Toast + Confirm
+  const { toasts, success, error, dismiss } = useToast();
+  const { confirmState, confirm, closeConfirm } = useConfirm();
+
   const fetchBlockedIps = useCallback(async () => {
     try {
       const res = await authFetch(`${API}/api/blocked`);
@@ -106,15 +116,40 @@ export const BlockedPanel: FC = () => {
     return () => clearInterval(interval);
   }, [fetchBlockedIps]);
 
-  const handleUnblock = async (ip: string) => {
+  const handleUnblock = useCallback(async (ip: string) => {
+    // Step 1: show confirmation modal
+    const confirmed = await confirm({
+      title: 'Cabut Pemblokiran IP',
+      message: 'Apakah kamu yakin ingin mencabut status pemblokiran untuk IP berikut? IP ini akan diizinkan kembali mengakses sistem.',
+      ip,
+      variant: 'danger',
+      confirmLabel: 'Ya, Cabut Blokir',
+      cancelLabel: 'Batal',
+    });
+    if (!confirmed) return;
+
+    // Step 2: execute unblock
     setUnblockedIps(prev => new Set(prev).add(ip));
     try {
-      const res = await authFetch(`${API}/api/blocked/unblock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip }) });
-      if (res.ok) setBlockedIps(prev => prev.filter(b => b.ip !== ip)); else fetchBlockedIps();
-    } catch { fetchBlockedIps(); } finally {
+      const res = await authFetch(`${API}/api/blocked/unblock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip }),
+      });
+      if (res.ok) {
+        setBlockedIps(prev => prev.filter(b => b.ip !== ip));
+        success(`IP ${ip} berhasil di-unblock.`);
+      } else {
+        fetchBlockedIps();
+        error(`Gagal mencabut blokir IP ${ip}. Coba lagi.`);
+      }
+    } catch {
+      fetchBlockedIps();
+      error(`Gagal mencabut blokir IP ${ip}. Periksa koneksi.`);
+    } finally {
       setUnblockedIps(prev => { const next = new Set(prev); next.delete(ip); return next; });
     }
-  };
+  }, [confirm, fetchBlockedIps, success, error]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -126,6 +161,10 @@ export const BlockedPanel: FC = () => {
       <main className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
         <BlockedTable blockedIps={blockedIps} loading={loading} onRefresh={fetchBlockedIps} onUnblock={handleUnblock} unblockedIps={unblockedIps} />
       </main>
+
+      {/* Confirm modal + toast notifications */}
+      <ConfirmModal state={confirmState} onClose={closeConfirm} />
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 };

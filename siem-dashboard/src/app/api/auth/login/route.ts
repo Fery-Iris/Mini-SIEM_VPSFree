@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         email: demoAdmin.email,
         adminId: demoAdmin.id,
         organizationId: demoAdmin.organizationId || 1,
-        organizationName: "XR Security Demo",
+        organizationName: "MicroGaze Demo",
       });
     }
 

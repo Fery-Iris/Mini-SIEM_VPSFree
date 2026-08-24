@@ -48,7 +48,7 @@ export const translations: Record<string, Record<string, string>> = {
     'footer.getStarted': 'Get Started',
     'footer.resources': 'Resources',
     'footer.contact': 'Contact',
-    'footer.copyright': 'XR Security — Mini-SIEM. All rights reserved.',
+    'footer.copyright': 'MicroGaze — Mini-SIEM. All rights reserved.',
     'footer.status': 'All systems operational',
 
     // ── Sidebar / Dashboard ──
@@ -184,7 +184,7 @@ export const translations: Record<string, Record<string, string>> = {
     'signin.signUp': 'Sign Up',
     'signin.welcomeBack': 'Welcome back',
     'signin.createAccount': 'Create New Account',
-    'signin.signInDesc': 'Sign in to your XR Security account',
+    'signin.signInDesc': 'Sign in to your MicroGaze account',
     'signin.signUpDesc': 'Create your organization account and start monitoring security threats.',
     'signin.orgName': 'Organization Name',
     'signin.orgPlaceholder': 'e.g. Acme Security Corp',
@@ -318,7 +318,7 @@ export const translations: Record<string, Record<string, string>> = {
     'footer.getStarted': 'Mulai Sekarang',
     'footer.resources': 'Sumber Daya',
     'footer.contact': 'Kontak',
-    'footer.copyright': 'XR Security — Mini-SIEM. Hak cipta dilindungi.',
+    'footer.copyright': 'MicroGaze — Mini-SIEM. Hak cipta dilindungi.',
     'footer.status': 'Semua sistem beroperasi',
 
     // ── Sidebar / Dashboard ──
@@ -453,7 +453,7 @@ export const translations: Record<string, Record<string, string>> = {
     'signin.signUp': 'Daftar',
     'signin.welcomeBack': 'Selamat datang kembali',
     'signin.createAccount': 'Buat Akun Baru',
-    'signin.signInDesc': 'Masuk ke akun XR Security Anda',
+    'signin.signInDesc': 'Masuk ke akun MicroGaze Anda',
     'signin.signUpDesc': 'Buat akun organisasi Anda dan mulai monitor ancaman keamanan.',
     'signin.orgName': 'Nama Instansi',
     'signin.orgPlaceholder': 'cth. PT Keamanan Digital',
