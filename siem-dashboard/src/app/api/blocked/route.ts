@@ -1,23 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAdminId } from "@/utils/serverAuth";
 
-// To get blocked IP list for the SDK (API Key required)
-export async function GET(req: Request) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader) return NextResponse.json({ error: "API key missing" }, { status: 401 });
-  
-  const token = authHeader.replace("Bearer ", "");
-  const apiKey = await prisma.apiKey.findFirst({ where: { keyValue: token, isActive: 1 } });
-  
-  if (!apiKey) return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+// Dashboard-facing endpoint: returns blocked IPs with timestamps (JWT auth)
+export async function GET() {
+  const adminId = await getAdminId();
+  if (!adminId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Use `createdAt` of the earliest isBlocked=true log per IP as the block timestamp.
+  // Ordering asc ensures the first row per distinct IP is the original block event.
   const blockedLogs = await prisma.securityLog.findMany({
-    where: { adminId: apiKey.adminId, isBlocked: true },
-    select: { sourceIp: true },
-    distinct: ["sourceIp"]
+    where: { adminId, isBlocked: true },
+    select: { sourceIp: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+    distinct: ["sourceIp"],
   });
 
   return NextResponse.json({
-    blocked_ips: blockedLogs.map(l => l.sourceIp)
+    blocked_ips: blockedLogs.map((l) => ({
+      ip: l.sourceIp,
+      blockedAt: l.createdAt.toISOString(),
+    })),
   });
 }

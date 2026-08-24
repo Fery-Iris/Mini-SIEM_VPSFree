@@ -91,7 +91,10 @@ export const BlockedPanel: FC = () => {
       const res = await authFetch(`${API}/api/blocked`);
       const data = await res.json();
       if (Array.isArray(data.blocked_ips)) {
-        const newIps = data.blocked_ips.map((ip: string) => ({ ip, blockedAt: new Date().toISOString() }));
+        const newIps = data.blocked_ips.map((entry: { ip: string; blockedAt: string }) => ({
+          ip: entry.ip,
+          blockedAt: entry.blockedAt,
+        }));
         setBlockedIps(newIps);
       }
     } catch (err) { console.error('Failed to fetch blocked IPs:', err); } finally { setLoading(false); }
