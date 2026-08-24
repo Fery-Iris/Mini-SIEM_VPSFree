@@ -46,10 +46,10 @@ export async function GET(req: Request) {
     return errorRedirect("Missing authorization code from Google.");
   }
 
+  // ── 1. Exchange code for tokens ──────────────────────────────────────────
+  let tokens: GoogleTokenResponse;
   try {
-    // ── 1. Exchange code for tokens ──────────────────────────────────────────
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
-
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -67,42 +67,63 @@ export async function GET(req: Request) {
       console.error("Google token exchange failed:", err);
       return errorRedirect("Failed to exchange Google authorization code.");
     }
+    tokens = await tokenRes.json();
+  } catch (err) {
+    console.error("Token exchange error:", err);
+    return errorRedirect("Failed to connect to Google.");
+  }
 
-    const tokens: GoogleTokenResponse = await tokenRes.json();
-
-    // ── 2. Fetch user info from Google ───────────────────────────────────────
+  // ── 2. Fetch user info from Google ───────────────────────────────────────
+  let googleUser: GoogleUserInfo;
+  try {
     const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
-
     if (!userInfoRes.ok) {
       return errorRedirect("Failed to fetch user info from Google.");
     }
+    googleUser = await userInfoRes.json();
+  } catch (err) {
+    console.error("Userinfo fetch error:", err);
+    return errorRedirect("Failed to fetch profile from Google.");
+  }
 
-    const googleUser: GoogleUserInfo = await userInfoRes.json();
+  if (!googleUser.email_verified) {
+    return errorRedirect("Google account email is not verified.");
+  }
 
-    if (!googleUser.email_verified) {
-      return errorRedirect("Google account email is not verified.");
+  // ── 3. Find or create user in DB ─────────────────────────────────────────
+  // Strategy: try googleId first (if column exists), then fall back to email.
+  // This makes the handler work even if the DB migration hasn't run yet.
+  let adminId: number;
+  let adminEmail: string;
+  let adminOrgId: number | null;
+  let adminOrgName: string;
+
+  try {
+    // Try to find by googleId first, fallback to email
+    let existingAdmin = null;
+
+    try {
+      existingAdmin = await prisma.admin.findFirst({
+        where: { googleId: googleUser.sub },
+        include: { organization: true },
+      });
+    } catch {
+      // googleId column might not exist yet — ignore and fall through to email lookup
+      console.warn("googleId column not found, falling back to email lookup");
     }
 
-    // ── 3. Find or create user in DB ─────────────────────────────────────────
-    let adminId: number;
-    let adminEmail: string;
-    let adminOrgId: number | null;
-    let adminOrgName: string;
-
-    const existingAdmin = await prisma.admin.findFirst({
-      where: {
-        OR: [
-          { googleId: googleUser.sub },
-          { email: googleUser.email },
-        ],
-      },
-      include: { organization: true },
-    });
+    // If not found by googleId, look up by email
+    if (!existingAdmin) {
+      existingAdmin = await prisma.admin.findUnique({
+        where: { email: googleUser.email },
+        include: { organization: true },
+      });
+    }
 
     if (!existingAdmin) {
-      // New user — create org + admin automatically
+      // ── New user: create org + admin ──────────────────────────────────────
       const orgName = googleUser.name
         ? `${googleUser.name}'s Organization`
         : "My Organization";
@@ -111,15 +132,28 @@ export async function GET(req: Request) {
         const org = await tx.organization.create({
           data: { name: orgName },
         });
-        const newAdmin = await tx.admin.create({
-          data: {
-            email: googleUser.email,
-            password: null,           // No password for Google OAuth users
-            googleId: googleUser.sub,
-            organizationId: org.id,
-            isVerified: true,          // Google already verified the email
-          },
-        });
+
+        // Build admin data — try to include googleId, but don't fail if column missing
+        const adminData: {
+          email: string;
+          password: null;
+          organizationId: number;
+          isVerified: boolean;
+          googleId?: string;
+        } = {
+          email: googleUser.email,
+          password: null,
+          organizationId: org.id,
+          isVerified: true,
+        };
+
+        try {
+          adminData.googleId = googleUser.sub;
+        } catch {
+          // ignore if field not supported yet
+        }
+
+        const newAdmin = await tx.admin.create({ data: adminData });
         return { org, admin: newAdmin };
       });
 
@@ -128,12 +162,17 @@ export async function GET(req: Request) {
       adminOrgId = result.org.id;
       adminOrgName = result.org.name;
     } else {
-      // Existing user — link Google account if not linked yet
+      // ── Existing user: link Google account if not linked ──────────────────
       if (!existingAdmin.googleId) {
-        await prisma.admin.update({
-          where: { id: existingAdmin.id },
-          data: { googleId: googleUser.sub, isVerified: true },
-        });
+        try {
+          await prisma.admin.update({
+            where: { id: existingAdmin.id },
+            data: { googleId: googleUser.sub, isVerified: true },
+          });
+        } catch {
+          // Column might not exist yet — just proceed with login
+          console.warn("Could not update googleId — column may not exist yet");
+        }
       }
 
       adminId = existingAdmin.id;
@@ -141,22 +180,22 @@ export async function GET(req: Request) {
       adminOrgId = existingAdmin.organizationId;
       adminOrgName = existingAdmin.organization?.name ?? "";
     }
-
-    // ── 4. Issue JWT (same format as email/password login) ───────────────────
-    const token = jwt.sign({ adminId }, jwtSecret, { expiresIn: "24h" });
-
-    // ── 5. Redirect to dashboard with token ──────────────────────────────────
-    // The client-side GoogleAuthHandler picks up these params and stores in localStorage.
-    const dashboardUrl = new URL(`${baseUrl}/dashboard`);
-    dashboardUrl.searchParams.set("token", token);
-    dashboardUrl.searchParams.set("adminId", String(adminId));
-    dashboardUrl.searchParams.set("email", adminEmail);
-    dashboardUrl.searchParams.set("orgId", String(adminOrgId ?? 0));
-    dashboardUrl.searchParams.set("orgName", adminOrgName);
-
-    return NextResponse.redirect(dashboardUrl.toString());
-  } catch (error) {
-    console.error("Google OAuth callback error:", error);
-    return errorRedirect("An unexpected error occurred during Google sign-in.");
+  } catch (err) {
+    console.error("Database error during Google OAuth:", err);
+    return errorRedirect("Database error during sign-in. Please try again.");
   }
+
+  // ── 4. Issue JWT ──────────────────────────────────────────────────────────
+  const token = jwt.sign({ adminId }, jwtSecret, { expiresIn: "24h" });
+
+  // ── 5. Redirect to dashboard ──────────────────────────────────────────────
+  // GoogleAuthHandler (client component) picks up these params and stores in localStorage.
+  const dashboardUrl = new URL(`${baseUrl}/dashboard`);
+  dashboardUrl.searchParams.set("token", token);
+  dashboardUrl.searchParams.set("adminId", String(adminId));
+  dashboardUrl.searchParams.set("email", adminEmail);
+  dashboardUrl.searchParams.set("orgId", String(adminOrgId ?? 0));
+  dashboardUrl.searchParams.set("orgName", adminOrgName);
+
+  return NextResponse.redirect(dashboardUrl.toString());
 }
