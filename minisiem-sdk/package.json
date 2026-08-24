@@ -1,14 +1,40 @@
 {
-  "name": "minisiem-sdk",
+  "name": "microgaze",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
+  "description": "Mini-SIEM middleware SDK for Next.js — WAF, rate limiting, and threat detection with automatic reporting to your SIEM dashboard.",
+  "keywords": [
+    "siem",
+    "security",
+    "waf",
+    "middleware",
+    "nextjs",
+    "threat-detection",
+    "rate-limit"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "next": ">=13.0.0"
+  },
   "devDependencies": {
     "@types/node": "^26.1.2",
     "next": "^16.3.0",

@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
-    "module": "nodenext",
-    "target": "esnext",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "target": "es2020",
     "types": ["node"],
-    "lib": ["esnext"],
+    "lib": ["es2020"],
 
     "rootDir": "./src",
     "outDir": "./dist",
@@ -13,9 +14,7 @@
     "declarationMap": true,
 
     "strict": true,
-    "jsx": "react-jsx",
     "isolatedModules": true,
-    "moduleDetection": "force",
     "skipLibCheck": true,
 
     "noUncheckedIndexedAccess": true,

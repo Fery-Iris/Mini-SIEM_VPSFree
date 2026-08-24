@@ -1,0 +1,8 @@
+# Files to exclude from npm package
+node_modules/
+src/
+*.ts
+!dist/**/*.d.ts
+tsconfig.json
+.npmrc
+*.log
