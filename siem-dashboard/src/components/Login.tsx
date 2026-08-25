@@ -155,11 +155,7 @@ export const Login: FC<LoginProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              {/* Demo Credentials Hint */}
-              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium">
-                <Shield size={16} className="shrink-0" />
-                <span>Demo: <code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs font-mono">admin@xrsecurity.com</code> / <code className="bg-blue-100 px-1.5 py-0.5 rounded text-xs font-mono">demo1234</code></span>
-              </div>
+      
 
               {/* Email Field */}
               <div className="space-y-1.5">
