@@ -92,7 +92,7 @@ async function syncBlockedIPs(
   ip: string
 ): Promise<void> {
   try {
-    const res = await fetch(`${siemUrl}/api/blocked`, {
+    const res = await fetch(`${siemUrl}/api/blocked/list`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (res.ok) {

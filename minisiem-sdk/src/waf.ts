@@ -231,9 +231,11 @@ export function detectThreats(
     url: url || "",
     body: bodyStr || "",
     "user-agent": headers.get("user-agent") || "",
-    headers: Array.from(headers.entries())
-      .map(([k, v]) => `${k}: ${v}`)
-      .join("\n"),
+    headers: (() => {
+      const arr: string[] = [];
+      headers.forEach((v, k) => arr.push(`${k}: ${v}`));
+      return arr.join("\n");
+    })(),
   };
 
   for (const rule of WAF_RULES) {
