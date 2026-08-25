@@ -286,6 +286,43 @@ const ThreatTable: FC<{
 
 /* ─────────────────── WAF Rules Dictionary ─────────────────── */
 
+function checkTokenMatch(token: string, payload: string): boolean {
+  if (!payload || !token) return false;
+  const rawLower = payload.toLowerCase();
+  let decodedLower = rawLower;
+  try {
+    decodedLower = decodeURIComponent(rawLower);
+  } catch (e) {}
+
+  const tokLower = token.toLowerCase();
+
+  // 1. Direct match on raw or URL-decoded payload
+  if (rawLower.includes(tokLower) || decodedLower.includes(tokLower)) {
+    return true;
+  }
+
+  // 2. Encoded version of token (e.g. <script> -> %3cscript%3e)
+  const encodedTok = encodeURIComponent(token).toLowerCase();
+  if (rawLower.includes(encodedTok)) {
+    return true;
+  }
+
+  // 3. Script tag equivalence: If payload has <script> or %3cscript%3e or script tag injection,
+  // tokens '<script>' and '</script>' are both relevant script tag badges for XSS
+  if ((tokLower === '<script>' || tokLower === '</script>') &&
+      (rawLower.includes('script') || decodedLower.includes('script'))) {
+    return true;
+  }
+
+  // 4. Token with stripped brackets (e.g., '<script>' -> 'script', '%3c' -> '<')
+  const cleanTok = tokLower.replace(/^[%3c<]+|[%3e>]+$/g, '');
+  if (cleanTok && cleanTok.length > 2 && (rawLower.includes(cleanTok) || decodedLower.includes(cleanTok))) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Single expandable rule row — table-style layout.
  * Default state: green left-border (teal).
@@ -370,7 +407,7 @@ const RuleRow: FC<{
                     if (rule.id === 'UA_001' && (highlightedPayload === '' || highlightedPayload === 'unknown' || highlightedPayload.toLowerCase().includes('unknown'))) {
                       matchedIndices.add(idx);
                     } else if (token !== '[Empty String]' && token !== '[No User-Agent]') {
-                      if (highlightedPayload.toLowerCase().includes(token.toLowerCase())) {
+                      if (checkTokenMatch(token, highlightedPayload)) {
                         matchedIndices.add(idx);
                       }
                     }
