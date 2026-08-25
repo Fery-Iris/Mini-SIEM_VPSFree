@@ -58,14 +58,6 @@ interface ThreatRow {
   isCurrentlyBlocked?: boolean;
 }
 
-interface CrowdSecStatus {
-  connected: boolean;
-  lapi_url: string;
-  machine_id: string;
-  alerts_stored: number;
-  scenario: string;
-}
-
 const SEVERITY_STYLES: Record<string, string> = {
   Critical: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
   High: 'bg-red-500/10 text-red-400 border-red-500/20',
@@ -78,30 +70,6 @@ const BLOCK_BTN_STYLES: Record<string, string> = {
   High: 'border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50',
   Medium: 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50',
   Low: 'border-slate-500/30 text-slate-400 hover:bg-slate-500/10 hover:border-slate-500/50',
-};
-
-/* ─────────────────── Sub-Components ─────────────────── */
-
-const CrowdSecStatusBadge: FC<{ status: CrowdSecStatus | null; loading: boolean }> = ({ status, loading }) => {
-  const { t } = useLanguage();
-  if (loading) return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 text-slate-400 text-xs font-semibold">
-      <Loader2 size={14} className="animate-spin" />{t('detection.connecting')}
-    </div>
-  );
-  if (!status) return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs font-semibold border border-red-500/20">
-      <XCircle size={14} />{t('detection.offline')}
-    </div>
-  );
-  return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border ${status.connected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
-      {status.connected ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-      <span>CrowdSec {status.connected ? t('detection.connected') : t('detection.disconnected')}</span>
-      <span className="text-[10px] opacity-60">|</span>
-      <span className="text-[10px] opacity-70">{status.alerts_stored} {t('detection.alerts')}</span>
-    </div>
-  );
 };
 
 const ScoreBar: FC<{ score: number; maxScore: number }> = ({ score, maxScore }) => {
@@ -649,8 +617,6 @@ export const DetectionPanel: FC = () => {
   // Data state
   const [threats, setThreats] = useState<ThreatRow[]>([]);
   const [threatsLoading, setThreatsLoading] = useState(true);
-  const [csStatus, setCsStatus] = useState<CrowdSecStatus | null>(null);
-  const [csLoading, setCsLoading] = useState(true);
   const [blockingIps, setBlockingIps] = useState<Set<string>>(new Set());
   const [blockThreshold, setBlockThreshold] = useState(10);
 
@@ -685,16 +651,11 @@ export const DetectionPanel: FC = () => {
     catch (err) { console.error('Failed to fetch threats:', err); } finally { setThreatsLoading(false); }
   }, []);
 
-  const fetchStatus = useCallback(async () => {
-    try { const res = await authFetch(`${API}/api/crowdsec/status`); const data = await res.json(); setCsStatus(data); }
-    catch { setCsStatus(null); } finally { setCsLoading(false); }
-  }, []);
-
   useEffect(() => {
-    fetchConfig(); fetchThreats(); fetchStatus();
-    const interval = setInterval(() => { fetchThreats(); fetchStatus(); }, POLL_INTERVAL);
+    fetchConfig(); fetchThreats();
+    const interval = setInterval(() => { fetchThreats(); }, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchConfig, fetchThreats, fetchStatus]);
+  }, [fetchConfig, fetchThreats]);
 
   // Clamp currentPage when threats shrink
   useEffect(() => {
@@ -776,7 +737,10 @@ export const DetectionPanel: FC = () => {
         <button className="lg:hidden text-slate-400 hover:text-slate-200" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button>
         <div className="hidden lg:block w-px h-8 bg-slate-800 mr-2" />
         <h1 className="text-lg font-bold text-slate-100 tracking-tight">{t('detection.title')}</h1>
-        <div className="ml-auto"><CrowdSecStatusBadge status={csStatus} loading={csLoading} /></div>
+        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
+          <CheckCircle2 size={14} />
+          <span>WAF Engine Active</span>
+        </div>
       </header>
 
       <main className="flex-1 p-4 lg:p-6 space-y-6 overflow-y-auto">
