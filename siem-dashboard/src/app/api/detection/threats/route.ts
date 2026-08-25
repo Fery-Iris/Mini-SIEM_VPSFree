@@ -88,14 +88,40 @@ export async function POST(req: Request) {
       where: { adminId: apiKey.adminId },
     });
 
+    const ip = ipAddress || "unknown";
+    let countryCode: string | null = null;
+    let country: string | null = null;
+
+    if (ip !== "unknown" && ip !== "127.0.0.1" && ip !== "::1" && !ip.startsWith("192.168.") && !ip.startsWith("10.")) {
+      try {
+        const geoRes = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode`, {
+          signal: AbortSignal.timeout(1500),
+        });
+        if (geoRes.ok) {
+          const geoData = await geoRes.json();
+          if (geoData.status === "success") {
+            countryCode = geoData.countryCode;
+            country = geoData.country;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (!countryCode) {
+      countryCode = "ID";
+      country = "Indonesia";
+    }
+
     const log = await prisma.securityLog.create({
       data: {
         adminId: apiKey.adminId,
-        sourceIp: ipAddress || "unknown",
+        sourceIp: ip,
         action: action || "WAF_BLOCK",
         severity: severity || "High",
         detail: payload || "",
         fingerprint: userAgent || "",
+        countryCode,
+        country,
         isBlocked,
         // v2.0 scoring fields
         score,

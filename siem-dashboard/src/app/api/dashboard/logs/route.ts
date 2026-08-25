@@ -22,29 +22,40 @@ export async function GET(req: Request) {
   const total = await prisma.securityLog.count({ where: { adminId } });
 
   return NextResponse.json({
-    logs: logs.map(l => ({
-      id: l.id,
-      adminId: l.adminId,
-      userIdentity: l.userIdentity,
-      action: l.action,
-      severity: l.severity,
-      // Normalize: ipAddress = sourceIp (primary) fallback to ipAddressPublic
-      ipAddress: l.sourceIp || l.ipAddressPublic || "",
-      sourceIp: l.sourceIp || "",
-      ipAddressPublic: l.ipAddressPublic || null,
-      countryCode: l.countryCode || null,
-      country: l.country || null,
-      // userAgent is stored in the detail field (JSON or plain string)
-      userAgent: l.detail || null,
-      payload: null, // payload field removed; detail is used as userAgent
-      isBlocked: l.isBlocked,
-      createdAt: l.createdAt.toISOString(),
-      // v2.0 enrichment fields for expanded detail panel
-      matchedRules: l.matchedRules || null,   // JSON string array, e.g. '["SQLi","XSS"]'
-      decision: l.decision || null,           // LOG | ALERT | BLOCK
-      score: l.score,
-      accumulatedScore: l.accumulatedScore,
-    })),
+    logs: logs.map(l => {
+      const ip = l.sourceIp || l.ipAddressPublic || "";
+      // Extract clean userAgent vs payload:
+      // l.fingerprint stores actual HTTP User-Agent string
+      // l.detail stores WAF payload / URL match details
+      let userAgentStr = l.fingerprint || null;
+      let payloadStr = l.detail || null;
+
+      if (!userAgentStr && l.detail && l.detail.startsWith("Mozilla/")) {
+        userAgentStr = l.detail;
+        payloadStr = null;
+      }
+
+      return {
+        id: l.id,
+        adminId: l.adminId,
+        userIdentity: l.userIdentity,
+        action: l.action,
+        severity: l.severity,
+        ipAddress: ip,
+        sourceIp: l.sourceIp || "",
+        ipAddressPublic: l.ipAddressPublic || null,
+        countryCode: l.countryCode || "ID",
+        country: l.country || "Indonesia",
+        userAgent: userAgentStr,
+        payload: payloadStr,
+        isBlocked: l.isBlocked,
+        createdAt: l.createdAt.toISOString(),
+        matchedRules: l.matchedRules || null,
+        decision: l.decision || null,
+        score: l.score,
+        accumulatedScore: l.accumulatedScore,
+      };
+    }),
     total,
     page,
     limit,

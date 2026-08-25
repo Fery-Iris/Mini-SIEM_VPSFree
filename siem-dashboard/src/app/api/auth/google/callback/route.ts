@@ -88,11 +88,11 @@ export async function GET(req: Request) {
   let adminOrgName: string;
 
   try {
-    let existingAdmin = null;
+    let existingAdmin: any = null;
 
     // Try googleId lookup first (gracefully skip if column doesn't exist yet)
     try {
-      existingAdmin = await prisma.admin.findFirst({
+      existingAdmin = await (prisma.admin as any).findFirst({
         where: { googleId: googleUser.sub },
         include: { organization: true },
       });
@@ -116,20 +116,14 @@ export async function GET(req: Request) {
 
       const result = await prisma.$transaction(async (tx) => {
         const org = await tx.organization.create({ data: { name: orgName } });
-        const adminData: {
-          email: string;
-          password: null;
-          organizationId: number;
-          isVerified: boolean;
-          googleId?: string;
-        } = {
+        const adminData: any = {
           email: googleUser.email,
-          password: null,
+          password: "",
           organizationId: org.id,
           isVerified: true,
           googleId: googleUser.sub,
         };
-        const newAdmin = await tx.admin.create({ data: adminData });
+        const newAdmin = await (tx.admin as any).create({ data: adminData });
         return { org, admin: newAdmin };
       });
 
@@ -141,7 +135,7 @@ export async function GET(req: Request) {
       // Existing user — link Google account if not linked
       if (!existingAdmin.googleId) {
         try {
-          await prisma.admin.update({
+          await (prisma.admin as any).update({
             where: { id: existingAdmin.id },
             data: { googleId: googleUser.sub, isVerified: true },
           });

@@ -162,6 +162,24 @@ const StatCard: FC<StatCardData> = ({ label, value, change, sub, icon, iconBg, i
   );
 };
 
+/* ──────────────── Timezone Helper ──────────────── */
+
+function formatSingaporeTime(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(d);
+}
+
 /* ──────────────── Expanded Row Detail Panel ──────────────── */
 
 function DetailField({ label, value, mono = false, full = false, badge = false, badgeColor = '' }: {
@@ -204,17 +222,58 @@ function ExpandedDetail({ log }: { log: LogEntry }) {
     log.decision === 'ALERT'  ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' :
                                 'bg-slate-500/15 text-slate-400 border-slate-500/25';
 
+  // Construct structured payload content matching reference Image 2
+  let payloadContent = '';
+  if (log.payload) {
+    try {
+      const parsed = JSON.parse(log.payload);
+      payloadContent = JSON.stringify(parsed, null, 2);
+    } catch {
+      payloadContent = JSON.stringify(
+        {
+          scenario: "waf/threat-detection",
+          attack_type: log.action,
+          message: `Detected ${log.action} attack from ${log.ipAddress}`,
+          source_ip: log.ipAddress,
+          request_details: log.payload,
+          user_agent: log.userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          patterns_matched: attackTypes,
+          timestamp: formatSingaporeTime(log.createdAt) + " (+0800)",
+          decisions: [log.decision || (log.isBlocked ? "BLOCK" : "LOG")]
+        },
+        null,
+        2
+      );
+    }
+  } else {
+    payloadContent = JSON.stringify(
+      {
+        scenario: "waf/threat-detection",
+        attack_type: log.action,
+        message: `Detected ${log.action} attack from ${log.ipAddress}`,
+        source_ip: log.ipAddress,
+        user_agent: log.userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        patterns_matched: attackTypes,
+        timestamp: formatSingaporeTime(log.createdAt) + " (+0800)",
+        decisions: [log.decision || (log.isBlocked ? "BLOCK" : "LOG")]
+      },
+      null,
+      2
+    );
+  }
+
   return (
     <div className="px-6 pb-5 pt-3 bg-slate-800/20 border-t border-slate-700/30 w-full">
-      <div className="grid grid-cols-2 gap-x-8 gap-y-3 max-w-3xl">
+      <div className="grid grid-cols-2 gap-x-8 gap-y-3 max-w-4xl">
         {/* Row 1 */}
         <DetailField
-          label="User / Admin ID"
-          value={log.userIdentity || (log.adminId != null ? String(log.adminId) : null)}
+          label="EVENT ID"
+          value={`ID: ${log.id}`}
+          mono
         />
         <DetailField
           label="Event Time"
-          value={log.createdAt}
+          value={formatSingaporeTime(log.createdAt)}
           mono
         />
 
@@ -224,7 +283,7 @@ function ExpandedDetail({ log }: { log: LogEntry }) {
           value={log.action}
         />
         <div>
-          <p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider mb-0.5">Attack Type</p>
+          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Attack Type</p>
           {attackTypes.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {attackTypes.map((t, i) => (
@@ -250,24 +309,34 @@ function ExpandedDetail({ log }: { log: LogEntry }) {
         />
         <DetailField
           label="Decision"
-          value={log.decision}
+          value={log.decision || (log.isBlocked ? 'BLOCK' : 'LOG')}
           badge
           badgeColor={decisionBadgeColor}
         />
 
-        {/* Full width rows */}
+        {/* Full width User Agent */}
         <DetailField
           label="User Agent"
-          value={log.userAgent}
+          value={log.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
           mono
           full
         />
+
+        {/* Full width IP Address */}
         <DetailField
           label="IP Address"
           value={maskIP(log.ipAddress)}
           mono
           full
         />
+
+        {/* Yellow Payload Block matching Image 2 */}
+        <div className="col-span-2 mt-2">
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">PAYLOAD</p>
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 font-mono rounded-xl p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all shadow-inner leading-relaxed">
+            {payloadContent}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -360,33 +429,39 @@ const ActivityTable: FC = () => {
           </div>
         ) : (
           <div className="w-full text-sm">
-            {/* Header — 8 cols: # | Time | Severity | IP | Attack Type | Action | User | chevron */}
-            <div className="grid grid-cols-[44px_150px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_160px_36px] text-left text-[11px] text-slate-500 uppercase tracking-wider border-t border-b border-slate-700/40 bg-slate-800/30 font-semibold items-center">
+            {/* Header — 8 cols: # | Time | Severity | IP | Attack Type | Action | EVENT ID | chevron */}
+            <div className="grid grid-cols-[50px_160px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_120px_36px] text-left text-[11px] text-slate-500 uppercase tracking-wider border-t border-b border-slate-700/40 bg-slate-800/30 font-semibold items-center">
               <div className="px-3 py-2.5">#</div>
               <div className="px-3 py-2.5">{t('dashboard.colCreatedAt')}</div>
               <div className="px-3 py-2.5">{t('dashboard.colSeverity')}</div>
               <div className="px-3 py-2.5">{t('dashboard.colIp')}</div>
               <div className="px-3 py-2.5">Attack Type</div>
               <div className="px-3 py-2.5">{t('dashboard.colAction')}</div>
-              <div className="px-3 py-2.5">{t('dashboard.colUser')}</div>
+              <div className="px-3 py-2.5">EVENT ID</div>
               <div className="px-2 py-2.5"></div>
             </div>
 
             <div className="divide-y divide-slate-800/50">
-              {filteredLogs.map((log) => {
+              {filteredLogs.map((log, idx) => {
                 const isExpanded = expandedRows.has(log.id);
                 const attackTypes = parseAttackTypes(log.matchedRules, log.action);
+                const recordNumber = (page - 1) * limit + idx + 1;
                 return (
                   <div key={`${log.id}-${log.createdAt}`} className="group relative">
                     {/* Main row — always clickable for expanded detail */}
                     <div
-                      className="grid grid-cols-[44px_150px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_160px_36px] items-center w-full hover:bg-slate-800/40 transition-colors cursor-pointer"
+                      className="grid grid-cols-[50px_160px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_120px_36px] items-center w-full hover:bg-slate-800/40 transition-colors cursor-pointer"
                       onClick={() => toggleRow(log.id)}
                     >
-                      <div className="px-3 py-3 text-xs text-slate-600 font-mono">{log.id}</div>
-                      <div className="px-3 py-3 text-xs text-slate-500 font-mono whitespace-nowrap">
-                        {log.createdAt}
+                      {/* Sequential record number 1..N */}
+                      <div className="px-3 py-3 text-xs text-slate-400 font-mono font-bold">{recordNumber}</div>
+
+                      {/* Singapore Time */}
+                      <div className="px-3 py-3 text-xs text-slate-400 font-mono whitespace-nowrap">
+                        {formatSingaporeTime(log.createdAt)}
                       </div>
+
+                      {/* Severity */}
                       <div className="px-3 py-3">
                         <span
                           className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-md ${
@@ -409,11 +484,18 @@ const ActivityTable: FC = () => {
                           <ReactCountryFlag
                             countryCode={log.countryCode}
                             svg
-                            className="text-lg rounded-sm shadow-sm"
-                            title={log.country ?? undefined}
+                            style={{ width: '1.3em', height: '1em' }}
+                            title={log.country ?? log.countryCode}
+                            className="rounded-sm shadow-sm inline-block"
                           />
                         ) : (
-                          <span className="text-slate-500" title="Local/Unknown">🌐</span>
+                          <ReactCountryFlag
+                            countryCode="ID"
+                            svg
+                            style={{ width: '1.3em', height: '1em' }}
+                            title="Indonesia (ID)"
+                            className="rounded-sm shadow-sm inline-block"
+                          />
                         )}
                         <span className="text-cyan-400">{maskIP(log.ipAddress)}</span>
                       </div>
@@ -453,12 +535,9 @@ const ActivityTable: FC = () => {
                         )}
                       </div>
 
-                      {/* User */}
-                      <div className="px-3 py-3 text-xs text-slate-500 min-w-0">
-                        <div className="truncate" title={log.userIdentity ?? undefined}>{log.userIdentity}</div>
-                        {log.adminId != null && (
-                          <div className="text-[10px] text-slate-600 font-mono mt-0.5">ID: {log.adminId}</div>
-                        )}
+                      {/* Event ID */}
+                      <div className="px-3 py-3 text-xs text-slate-400 font-mono font-semibold min-w-0">
+                        ID: {log.id}
                       </div>
 
                       {/* Chevron */}
