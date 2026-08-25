@@ -11,10 +11,10 @@ export async function POST(req: Request) {
     const { ip } = await req.json();
     if (!ip) return NextResponse.json({ error: "IP is required" }, { status: 400 });
 
-    // Update Prisma: mark all security logs for this IP as not blocked
+    // Update Prisma: mark all security logs for this IP as not blocked and reset decision
     await prisma.securityLog.updateMany({
-      where: { adminId, sourceIp: ip, isBlocked: true },
-      data: { isBlocked: false }
+      where: { adminId, sourceIp: ip },
+      data: { isBlocked: false, decision: "LOG" }
     });
 
     // Cloudflare Unban

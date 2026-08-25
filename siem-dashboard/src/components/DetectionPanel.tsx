@@ -54,6 +54,8 @@ interface ThreatRow {
   matchedRules: string[];
   decision: string;
   detail: string;
+  isBlocked?: boolean;
+  isCurrentlyBlocked?: boolean;
 }
 
 interface CrowdSecStatus {
@@ -218,10 +220,22 @@ const ThreatTable: FC<{
                 <td className="px-4 py-3.5"><DecisionBadge decision={row.decision} /></td>
                 <td className="px-4 py-3.5"><span className={`text-[10px] font-bold px-2 py-1 rounded-full border uppercase tracking-wider ${SEVERITY_STYLES[row.severity] || SEVERITY_STYLES.Low}`}>{t(`severity.${(row.severity || 'low').toLowerCase()}`) || row.severity}</span></td>
                 <td className="px-4 py-3.5 text-right pr-6">
-                  <button onClick={() => onBlock(row.sourceIp)} disabled={blockingIps.has(row.sourceIp) || row.decision?.toUpperCase() === 'BLOCK'}
-                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${blockingIps.has(row.sourceIp) || row.decision?.toUpperCase() === 'BLOCK' ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-slate-700' : (BLOCK_BTN_STYLES[row.severity] || BLOCK_BTN_STYLES.Low)}`}>
-                    {blockingIps.has(row.sourceIp) || row.decision?.toUpperCase() === 'BLOCK' ? 'Blocked' : 'Block'}
-                  </button>
+                  {(() => {
+                    const isIpBlocked = blockingIps.has(row.sourceIp) || row.isCurrentlyBlocked === true || (row.isBlocked === true && row.decision?.toUpperCase() === 'BLOCK');
+                    return (
+                      <button
+                        onClick={() => onBlock(row.sourceIp)}
+                        disabled={isIpBlocked}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                          isIpBlocked
+                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-slate-700'
+                            : (BLOCK_BTN_STYLES[row.severity] || BLOCK_BTN_STYLES.Low)
+                        }`}
+                      >
+                        {isIpBlocked ? 'Blocked' : 'Block'}
+                      </button>
+                    );
+                  })()}
                 </td>
               </tr>
             ))}

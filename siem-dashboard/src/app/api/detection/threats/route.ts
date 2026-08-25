@@ -7,6 +7,14 @@ export async function GET() {
   const adminId = await getAdminId();
   if (!adminId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Get active blocked IPs for this admin
+  const blockedLogs = await prisma.securityLog.findMany({
+    where: { adminId, isBlocked: true },
+    select: { sourceIp: true },
+    distinct: ["sourceIp"],
+  });
+  const blockedSet = new Set(blockedLogs.map((l) => l.sourceIp));
+
   const threats = await prisma.securityLog.findMany({
     where: { adminId },
     orderBy: { createdAt: "desc" },
@@ -22,13 +30,17 @@ export async function GET() {
         }
       } catch (e) {}
 
+      const isCurrentlyBlocked = blockedSet.has(t.sourceIp);
+
       return {
         ...t,
+        isCurrentlyBlocked,
+        decision: isCurrentlyBlocked ? (t.decision || "BLOCK") : (t.decision === "BLOCK" ? "LOG" : (t.decision || "LOG")),
         CreatedAt: t.createdAt.toISOString(),
         latestUpdate: t.createdAt.toISOString(),
         attackType: t.action,
         publicIp: t.ipAddressPublic || "",
-        lat: 0, // Simplified for now, in a real app this uses GeoIP
+        lat: 0, // Simplified for now
         lng: 0,
         matchedRules: matchedRulesArr,
       };
