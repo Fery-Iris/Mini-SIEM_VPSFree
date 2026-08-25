@@ -432,7 +432,7 @@ const ActivityTable: FC = () => {
         ) : (
           <div className="w-full text-sm">
             {/* Header — 8 cols: # | Time | Severity | IP | Attack Type | Action | EVENT ID | chevron */}
-            <div className="grid grid-cols-[50px_160px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_120px_36px] text-left text-[11px] text-slate-500 uppercase tracking-wider border-t border-b border-slate-700/40 bg-slate-800/30 font-semibold items-center">
+            <div className="grid grid-cols-[40px_150px_85px_minmax(130px,1fr)_130px_minmax(200px,1.5fr)_90px_36px] text-left text-[11px] text-slate-500 uppercase tracking-wider border-t border-b border-slate-700/40 bg-slate-800/30 font-semibold items-center">
               <div className="px-3 py-2.5">#</div>
               <div className="px-3 py-2.5">{t('dashboard.colCreatedAt')}</div>
               <div className="px-3 py-2.5">{t('dashboard.colSeverity')}</div>
@@ -452,7 +452,7 @@ const ActivityTable: FC = () => {
                   <div key={`${log.id}-${log.createdAt}`} className="group relative">
                     {/* Main row — always clickable for expanded detail */}
                     <div
-                      className="grid grid-cols-[50px_160px_90px_minmax(140px,1fr)_150px_minmax(140px,1fr)_120px_36px] items-center w-full hover:bg-slate-800/40 transition-colors cursor-pointer"
+                      className="grid grid-cols-[40px_150px_85px_minmax(130px,1fr)_130px_minmax(200px,1.5fr)_90px_36px] items-center w-full hover:bg-slate-800/40 transition-colors cursor-pointer"
                       onClick={() => toggleRow(log.id)}
                     >
                       {/* Sequential record number 1..N */}
@@ -523,18 +523,19 @@ const ActivityTable: FC = () => {
                         )}
                       </div>
 
-                      {/* Action / Rule */}
-                      <div className="px-3 py-3 text-xs font-semibold text-slate-300 whitespace-nowrap">
-                        <span className="font-bold">
+                      {/* Action / Rule — BLOCKED badge on the left, action text truncated on the right */}
+                      <div className="px-3 py-3 text-xs font-semibold text-slate-300 min-w-0 flex items-center gap-2 overflow-hidden">
+                        {log.isBlocked && (
+                          <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md border bg-red-500/10 text-red-400 border-red-500/20 uppercase tracking-wider">
+                            BLOCKED
+                          </span>
+                        )}
+                        <span
+                          className="font-bold truncate text-slate-200"
+                          title={log.action.toLowerCase() === 'crowdsec-detection' ? t('attackType.crowdsecDetection') : log.action}
+                        >
                           {log.action.toLowerCase() === 'crowdsec-detection' ? t('attackType.crowdsecDetection') : log.action}
                         </span>
-                        {log.isBlocked && (
-                          <div className="mt-1 inline-block ml-2">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-red-500/10 text-red-400 border-red-500/20">
-                              BLOCKED
-                            </span>
-                          </div>
-                        )}
                       </div>
 
                       {/* Event ID */}
