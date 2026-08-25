@@ -107,6 +107,20 @@ export const DASHBOARD_WAF_RULES: DashboardWAFRule[] = [
 
   // ── High (Level 8-11) ───────────────────────────────────────────────
   {
+    id: 'AUTH_001',
+    name: 'Failed Login Attempt (Brute Force)',
+    category: 'High',
+    level: 2,
+    description: 'Multiple failed credential attempts detected on authentication endpoints.',
+    regexStr: String.raw`(?:invalid_credentials|failed_login|AUTH_001|invalid_password)`,
+    targets: ['auth', 'body'],
+    owasp: 'A07:2021 – Identification and Authentication Failures',
+    patternTokens: [
+      'Failed Login', 'AUTH_001', 'invalid_credentials',
+      '401 Unauthorized', 'Brute Force',
+    ],
+  },
+  {
     id: 'XSS_001',
     name: 'Cross-Site Scripting (XSS)',
     category: 'High',

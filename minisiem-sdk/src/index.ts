@@ -23,7 +23,7 @@ import {
   cleanupScoreStore,
   configureAccumulator,
 } from "./scoreAccumulator";
-import type { AccumulatorConfig, ActionDecision, ScoreEvent } from "./scoreAccumulator";
+import type { AccumulatorConfig, ActionDecision, ScoreEvent, AccumulationResult } from "./scoreAccumulator";
 
 // ─────────────── Types ─────────────── //
 
@@ -265,8 +265,78 @@ export function withMiniSIEM(
   };
 }
 
+// ─────────────── Failed Authentication Tracker ─────────────── //
+
+export interface FailedLoginOptions {
+  username?: string;
+  reason?: string;
+}
+
+/**
+ * Report a failed login attempt to Mini-SIEM.
+ * Increments accumulated threat score (+2 level points per failure) for the client IP.
+ * Automatically triggers ALERT or BLOCK decisions based on threshold settings.
+ */
+export async function reportFailedLogin(
+  req: Request | NextRequest,
+  config: MiniSIEMConfig,
+  options?: FailedLoginOptions
+): Promise<AccumulationResult & { isBlocked: boolean }> {
+  // Ensure accumulator is configured with SDK thresholds
+  configureAccumulator({
+    windowMs: config.scoreWindowMs,
+    alertThreshold: config.alertThreshold,
+    blockThreshold: config.blockThreshold,
+  });
+
+  let ip = "unknown";
+  let userAgent = "";
+
+  const headersObj = req.headers;
+  if (headersObj && typeof headersObj.get === "function") {
+    ip = headersObj.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    userAgent = headersObj.get("user-agent") || "";
+  }
+
+  const username = options?.username || "unknown";
+  const reason = options?.reason || "Invalid credentials";
+
+  // Score event: +2 points per failed authentication attempt
+  const authEvent: ScoreEvent = {
+    ruleId: "AUTH_001",
+    ruleName: "Failed Login Attempt",
+    level: 2,
+    timestamp: Date.now(),
+  };
+
+  const result = accumulateScore(ip, [authEvent]);
+  const isBlocked = result.action === "BLOCK" || isIPBlockedLocally(ip);
+
+  if (result.action === "BLOCK") {
+    cacheBlockedIP(ip);
+  }
+
+  // Report threat to SIEM Dashboard
+  await reportThreat(config.siemUrl, config.apiKey, {
+    ipAddress: ip,
+    action: "Failed Login Attempt",
+    severity: result.action === "BLOCK" ? "Critical" : result.action === "ALERT" ? "High" : "Medium",
+    score: 2,
+    accumulatedScore: result.currentScore,
+    matchedRules: ["Failed Login Attempt"],
+    decision: result.action,
+    payload: `[AUTH_001] Target User: ${username} | Reason: ${reason} | Attempts in window: ${result.eventCount}`,
+    userAgent,
+  });
+
+  return {
+    ...result,
+    isBlocked,
+  };
+}
+
 // Re-export for convenience
 export { WAF_RULES, detectThreats, levelToSeverity } from "./waf";
 export type { WAFRule, WAFMatch, DetectionResult } from "./waf";
-export type { AccumulatorConfig, ActionDecision } from "./scoreAccumulator";
+export type { AccumulatorConfig, ActionDecision, ScoreEvent, AccumulationResult } from "./scoreAccumulator";
 export { configureAccumulator, getThresholds } from "./scoreAccumulator";

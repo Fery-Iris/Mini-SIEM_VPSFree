@@ -102,6 +102,8 @@ function parseAttackTypes(matchedRules?: string | null, action?: string): string
 
 function shortAttackLabel(label: string): string {
   return label
+    .replace('Failed Login Attempt (Brute Force)', 'Brute Force')
+    .replace('Failed Login Attempt', 'Brute Force')
     .replace('SQL Injection (SQLi)', 'SQLi')
     .replace('SQL Injection', 'SQLi')
     .replace('Cross-Site Scripting (XSS)', 'XSS')
